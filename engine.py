@@ -129,18 +129,18 @@ class MatchingEngine:
 
     # ------ Public API ------
 
-    def set_user_default(self, user_id: str, initial_cash_cents: int = 0) -> None:
+    def set_user_default(self, user_id: str, initial_cash_cents: int = 100_000) -> None:
         if self.accounts.get(user_id) is None:
             self.accounts.setdefault(user_id, Account(cash_cents=initial_cash_cents))
         else:
             self.accounts[user_id].cash_cents = initial_cash_cents
 
     def set_asset_default(self, asset_id: str, initial_price_cents: int = 1000) -> None:
-        if self.books.get(asset_id) is None and self.last_price_cents.get(asset_id) is None:
+        if self.books.get(asset_id) is None:
             self.books.setdefault(asset_id, Book())
+        if self.last_price_cents.get(asset_id) is None:
             self.last_price_cents.setdefault(asset_id, initial_price_cents)
         else:
-            self.accounts[asset_id].cash_cents = initial_price_cents
             self.last_price_cents[asset_id] = initial_price_cents
         
     def validate_user(self, user_id: str) -> None:
@@ -159,6 +159,8 @@ class MatchingEngine:
             issuer_pct: float = 0.6
             ) -> None:
         
+        self.validate_user(issuer_user_id)
+
         if asset_id in self.assets:
             raise ValueError("Asset already exists")
         if total_supply <= 0:
@@ -177,6 +179,8 @@ class MatchingEngine:
         issuer_shares = int(round(total_supply * issuer_pct))
         treasury_shares = total_supply - issuer_shares
 
+        if self.accounts.get(TREASURY_USER) is None:
+            self.set_user_default(TREASURY_USER, 0)
         self._getholding(issuer_user_id, asset_id).shares += issuer_shares
         self._getholding(TREASURY_USER, asset_id).shares += treasury_shares
 
@@ -490,6 +494,10 @@ class MatchingEngine:
         # wipe derived states
         self.wipe()
 
+        # recreate default user accounts
+        # assumes that all users are created upfront with current default starting cash and never deleted
+        self.default_users()
+
         # for now just rebuild balances from ledger events
         for event in sorted(self.events, key=lambda e: (e.ts_seq, e.id)):
             if event.type == EventType.CASH_MOVED:
@@ -518,10 +526,18 @@ class MatchingEngine:
         for h in self.holdings.values():
             h.shares = 0
             h.reserved_shares = 0
+
+    def default_users(self) -> None:
+        for user_id in self.accounts.keys():
+            if user_id == TREASURY_USER:
+                self.set_user_default(user_id, initial_cash_cents=0)
+            else:
+                self.set_user_default(user_id)
         
     # ------ Testing Helpers ------
     def reset(self) -> None:
         self.wipe()
+        self.accounts.clear() # We need this to remove users in between tests
         self.assets.clear()
         self.books.clear()
         self.orders.clear()
