@@ -26,12 +26,14 @@ _event_id_gen = count(1) # Global event ID generator for all events (orders, tra
 
 @dataclass(frozen=True)
 class NewOrder:
+    """
+    Client request to place a new order
+    """
     user_id: str
     asset_id: str
     side: Side
     qty: int
     limit_price_cents: int # store money as int cents
-    client_order_id: Optional[str] = None
 
 @dataclass
 class Order:
@@ -97,6 +99,12 @@ class InsufficientShares(Exception):
 class UnknownOrder(Exception):
     pass
 
+class UnknownUser(Exception):
+    pass
+
+class UnknownAsset(Exception):
+    pass
+
 class Book:
     """
     Priority queue for an asset:
@@ -121,13 +129,28 @@ class MatchingEngine:
 
     # ------ Public API ------
 
-    def ensure_user(self, user_id: str, initial_cash_cents: int = 0) -> None:
-        self.accounts.setdefault(user_id, Account(cash_cents=initial_cash_cents))
+    def set_user_default(self, user_id: str, initial_cash_cents: int = 0) -> None:
+        if self.accounts.get(user_id) is None:
+            self.accounts.setdefault(user_id, Account(cash_cents=initial_cash_cents))
+        else:
+            self.accounts[user_id].cash_cents = initial_cash_cents
 
-    def ensure_asset(self, asset_id: str, initial_price_cents: int = 1000) -> None:
-        self.books.setdefault(asset_id, Book())
-        self.last_price_cents.setdefault(asset_id, initial_price_cents)
-
+    def set_asset_default(self, asset_id: str, initial_price_cents: int = 1000) -> None:
+        if self.books.get(asset_id) is None and self.last_price_cents.get(asset_id) is None:
+            self.books.setdefault(asset_id, Book())
+            self.last_price_cents.setdefault(asset_id, initial_price_cents)
+        else:
+            self.accounts[asset_id].cash_cents = initial_price_cents
+            self.last_price_cents[asset_id] = initial_price_cents
+        
+    def validate_user(self, user_id: str) -> None:
+        if user_id not in self.accounts:
+            raise UnknownUser(user_id)
+    
+    def validate_asset(self, asset_id: str) -> None:
+        if asset_id not in self.assets:
+            raise UnknownAsset(asset_id)
+    
     def create_person_asset(
             self, 
             issuer_user_id: str, 
@@ -148,7 +171,7 @@ class MatchingEngine:
             issuer_user_id=issuer_user_id,
             total_supply=total_supply,
             # TODO - allow custom names
-            name=f"USER{asset_id}"
+            name=f"{issuer_user_id}'s {asset_id}"
         )
 
         issuer_shares = int(round(total_supply * issuer_pct))
@@ -175,7 +198,7 @@ class MatchingEngine:
         self._emit(EventType.SHARES_MOVED, next(_seq_gen), asset_id=asset_id, from_user_id=None, to_user_id="TREASURY", shares=treasury_shares, reason="ISSUANCE")
 
 
-    def place_order(self, req: NewOrder) -> Tuple[Order, List[Trade]]:
+    def process_order(self, req: NewOrder) -> Tuple[Order, List[Trade]]:
         self._validate_new_order(req)
 
         order = Order(
@@ -250,6 +273,9 @@ class MatchingEngine:
     # ------ Matching Logic ------
 
     def _match(self, incoming: Order) -> List[Trade]:
+        if self.books.get(incoming.asset_id) is None:
+            return [] # no book, so no match
+
         book = self.books[incoming.asset_id]
         trades: List[Trade] = []
 
@@ -353,6 +379,8 @@ class MatchingEngine:
     # ------ Book Helpers ------
 
     def _add_to_book(self, order: Order) -> None:
+        if not self.books.get(order.asset_id):
+            self.books[order.asset_id] = Book()
         book = self.books[order.asset_id]
         if order.side == Side.BUY:
             # max-heap by price using negative price, then time priority
@@ -396,8 +424,8 @@ class MatchingEngine:
             raise ValueError("Order quantity must be positive")
         if req.limit_price_cents <= 0:
             raise ValueError("Limit price must be positive")
-        self.ensure_user(req.user_id)
-        self.ensure_asset(req.asset_id)
+        self.validate_user(req.user_id)
+        self.validate_asset(req.asset_id)
 
     def _reserve_for_order(self, order: Order) -> None:
         if order.side == Side.BUY:
@@ -459,14 +487,9 @@ class MatchingEngine:
         return event
     
     def rebuild_from_events(self) -> None:
-        # wipe derived state
-        for acct in self.accounts.values():
-            acct.cash_cents = 0
-            acct.reserved_cash_cents = 0
-        for h in self.holdings.values():
-            h.shares = 0
-            h.reserved_shares = 0
-        
+        # wipe derived states
+        self.wipe()
+
         # for now just rebuild balances from ledger events
         for event in sorted(self.events, key=lambda e: (e.ts_seq, e.id)):
             if event.type == EventType.CASH_MOVED:
@@ -488,24 +511,40 @@ class MatchingEngine:
                 if to_user:
                     self._getholding(to_user, asset_id).shares += shares
 
+    def wipe(self) -> None:
+        for acct in self.accounts.values():
+            acct.cash_cents = 0
+            acct.reserved_cash_cents = 0
+        for h in self.holdings.values():
+            h.shares = 0
+            h.reserved_shares = 0
+        
+    # ------ Testing Helpers ------
+    def reset(self) -> None:
+        self.wipe()
+        self.assets.clear()
+        self.books.clear()
+        self.orders.clear()
+        self.last_price_cents.clear()
+        self.events.clear()
 
 # ------ Usage Example ------
 if __name__ == "__main__":
     eng = MatchingEngine()
-    eng.ensure_user("alice", initial_cash_cents=100_000)  # $1000.00
-    eng.ensure_user("bob", initial_cash_cents=100_000)
-    eng.ensure_user(TREASURY_USER)
+    eng.set_user_default("alice", initial_cash_cents=100_000)  # $1000.00
+    eng.set_user_default("bob", initial_cash_cents=100_000)
+    eng.set_user_default(TREASURY_USER)
 
-    eng.ensure_asset("bob-stock", initial_price_cents=1_000)
+    eng.set_asset_default("bob-stock", initial_price_cents=1_000)
     eng.create_person_asset("bob-stock", "bob")
 
     # Bob posts a sell: 10 shares at $12
-    o1, t1 = eng.place_order(NewOrder(
+    o1, t1 = eng.process_order(NewOrder(
         user_id="bob", asset_id="bob-stock", side=Side.SELL, qty=10, limit_price_cents=1_200
     ))
 
     # Alice buys: 7 shares at $15 (crosses, fills at $12)
-    o2, t2 = eng.place_order(NewOrder(
+    o2, t2 = eng.process_order(NewOrder(
         user_id="alice", asset_id="bob-stock", side=Side.BUY, qty=7, limit_price_cents=1_500
     ))
 
