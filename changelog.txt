@@ -1,0 +1,13 @@
+2/16/26: 
+Implemented more tests for python engine including:
+ - Finding no cross matching price rests the order on the book
+ - Orders with the same price follow time priority as the next priority
+ - Orders can be filled across multiple orders with differing prices
+ - Canceled orders release reserved cash/shares
+ - Orders with unsufficient cash/shares are rejected
+ - Rebuilding the current state from the event log matches the ledger
+ - Canceled orders are not able to be matched for new orders
+
+2/17/26: 
+Set up project folder for Node
+Set up PostGreSQL schema
