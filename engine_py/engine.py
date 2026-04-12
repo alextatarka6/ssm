@@ -77,6 +77,7 @@ class Asset:
 
 class EventType(str, Enum):
     ASSET_CREATED = "ASSET_CREATED"
+    USER_CREATED = "USER_CREATED"
     ORDER_PLACED = "ORDER_PLACED"
     ORDER_CANCELED = "ORDER_CANCELED"
     TRADE_EXECUTED = "TRADE_EXECUTED"
@@ -131,7 +132,13 @@ class MatchingEngine:
 
     def set_user_default(self, user_id: str, initial_cash_cents: int = 100_000) -> None:
         if self.accounts.get(user_id) is None:
-            self.accounts.setdefault(user_id, Account(cash_cents=initial_cash_cents))
+            self.accounts[user_id] = Account(cash_cents=initial_cash_cents)
+            self._emit(
+                EventType.USER_CREATED,
+                next(_seq_gen),
+                user_id=user_id,
+                cash_cents=initial_cash_cents,
+            )
         else:
             self.accounts[user_id].cash_cents = initial_cash_cents
 
@@ -527,6 +534,11 @@ class MatchingEngine:
                     name=name,
                 )
                 self.set_asset_default(asset_id)
+
+            elif event_type == EventType.USER_CREATED:
+                user_id = data["user_id"]
+                cash_cents = data["cash_cents"]
+                self.accounts[user_id] = Account(cash_cents=cash_cents)
 
             elif event_type == EventType.CASH_MOVED:
                 from_user = data.get("from_user_id")

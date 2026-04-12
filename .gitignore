@@ -1,4 +1,8 @@
-__pycache__
-.pytest_cache
-.vscode
-server/.env
+__pycache__/
+.pytest_cache/
+.vscode/
+node_modules/
+dist/
+.env
+*.db
+server/backend/local.db

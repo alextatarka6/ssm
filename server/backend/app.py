@@ -1,12 +1,12 @@
-import os
 import sys
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 # Ensure the repository root is on sys.path so engine_py imports correctly.
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
@@ -22,6 +22,7 @@ from .persist import load_all_events, load_all_orders
 from .routes.users import router as users_router
 from .routes.assets import router as assets_router
 from .routes.orders import router as orders_router
+from .routes.query import router as query_router
 
 app = FastAPI(title="SSM Trading API")
 engine = MatchingEngine()
@@ -54,6 +55,11 @@ async def insufficient_shares_handler(request: Request, exc: InsufficientShares)
 async def value_error_handler(request: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
-app.include_router(users_router)
-app.include_router(assets_router)
-app.include_router(orders_router)
+app.include_router(users_router, prefix="/api")
+app.include_router(assets_router, prefix="/api")
+app.include_router(orders_router, prefix="/api")
+app.include_router(query_router, prefix="/api")
+
+frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "dev:py": "cd .. && uvicorn server.app:app --reload --host 0.0.0.0 --port 8000"
+    "dev:py": "cd .. && uvicorn server.backend.app:app --reload --host 0.0.0.0 --port 8000",
+    "frontend:dev": "cd frontend && npm install && npm run dev",
+    "frontend:build": "cd frontend && npm install && npm run build"
   },
   "keywords": [],
   "author": "",

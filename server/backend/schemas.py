@@ -55,3 +55,43 @@ class TradeResponse(BaseModel):
 class OrderSubmissionResponse(BaseModel):
     order: OrderResponse
     trades: List[TradeResponse]
+
+
+class AssetResponse(BaseModel):
+    asset_id: str
+    issuer_user_id: str
+    total_supply: int
+    name: Optional[str]
+    last_price_cents: Optional[int]
+
+
+class HoldingResponse(BaseModel):
+    asset_id: str
+    shares: int
+    reserved_shares: int
+    last_price_cents: Optional[int]
+    market_value_cents: int
+
+
+class UserPortfolioResponse(BaseModel):
+    user_id: str
+    cash_cents: int
+    reserved_cash_cents: int
+    holdings: List[HoldingResponse]
+
+
+class CandleBar(BaseModel):
+    time: int
+    open: float
+    high: float
+    low: float
+    close: float
+    ha_open: float
+    ha_high: float
+    ha_low: float
+    ha_close: float
+
+
+class CandleResponse(BaseModel):
+    asset_id: str
+    bars: List[CandleBar]
