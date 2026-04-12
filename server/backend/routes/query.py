@@ -21,7 +21,7 @@ def _is_sqlite(conn: Any) -> bool:
 
 
 def _param(conn: Any, index: int) -> str:
-    return "?" if _is_sqlite(conn) else f"${index}"
+    return "?" if _is_sqlite(conn) else "%s"
 
 
 def _placeholders(conn: Any, count: int) -> str:

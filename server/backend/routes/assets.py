@@ -14,6 +14,7 @@ def create_asset(payload: AssetCreate, request: Request) -> dict:
         issuer_user_id=payload.issuer_user_id,
         asset_id=payload.asset_id,
         total_supply=payload.total_supply,
+        issuer_pct=payload.issuer_pct,
         name=payload.name,
     )
 

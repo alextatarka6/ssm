@@ -11,13 +11,14 @@ class Side(str, Enum):
 
 class UserCreate(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
-    initial_cash_cents: Annotated[int, Field(ge=0)] = 0
+    initial_cash_cents: Annotated[int, Field(ge=0)] = 500_000
 
 
 class AssetCreate(BaseModel):
     issuer_user_id: Annotated[str, Field(min_length=1)]
     asset_id: Annotated[str, Field(min_length=1)]
     total_supply: PositiveInt = 1000
+    issuer_pct: Annotated[float, Field(gt=0, lt=1)] = 0.4
     name: Optional[str] = None
 
 

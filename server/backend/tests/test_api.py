@@ -59,15 +59,15 @@ def build_request(engine: MatchingEngine):
 
 def test_create_user(engine):
     response = create_user(
-        UserCreate(user_id="alice", initial_cash_cents=10000),
+        UserCreate(user_id="alice"),
         build_request(engine),
     )
 
     assert response == {"ok": True}
-    assert engine.accounts["alice"].cash_cents == 10000
+    assert engine.accounts["alice"].cash_cents == 500000
 
 
-def test_create_asset_assigns_all_supply_to_treasury(engine):
+def test_create_asset_splits_supply_between_issuer_and_public_float(engine):
     create_user(UserCreate(user_id="bob", initial_cash_cents=0), build_request(engine))
 
     response = create_asset(
@@ -76,9 +76,9 @@ def test_create_asset_assigns_all_supply_to_treasury(engine):
     )
 
     assert response == {"ok": True}
+    assert engine.holdings[("bob", "bob-stock")].shares == 400
     assert (TREASURY_USER, "bob-stock") in engine.holdings
-    assert engine.holdings[(TREASURY_USER, "bob-stock")].shares == 1000
-    assert engine.holdings.get(("bob", "bob-stock"), None) is None or engine.holdings[("bob", "bob-stock")].shares == 0
+    assert engine.holdings[(TREASURY_USER, "bob-stock")].shares == 600
 
 
 def test_place_buy_order_and_cancel(engine):

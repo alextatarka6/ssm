@@ -3,7 +3,7 @@
 SSM is a small stock-simulation project with:
 
 - a Python FastAPI backend for trading, portfolios, and query endpoints
-- a React + Vite frontend for login, portfolio viewing, market browsing, and charting
+- a React + Vite frontend for Supabase auth, portfolio viewing, market browsing, and charting
 - a Python matching engine in `engine_py/`
 
 ## Project Layout
@@ -12,7 +12,6 @@ SSM is a small stock-simulation project with:
 engine_py/              Matching engine and core trading logic
 server/backend/         FastAPI backend, routes, persistence, tests
 server/frontend/        React frontend
-server/src/             Existing Node server code
 ```
 
 ## Requirements
@@ -36,6 +35,23 @@ server/backend/.env
 ```
 
 If `DATABASE_URL` is not set, it falls back to a local SQLite database.
+
+## Supabase
+
+The frontend uses Supabase Auth for email/password sign-in and registration. Supabase SQL migrations for auth-linked profiles plus portfolio/trading tables live in:
+
+```text
+supabase/migrations/
+```
+
+Those migrations keep login records in `auth.users`, create app tables in `public`, and backfill initial balances and asset allocation. See [supabase/README.md](/home/inferno/projects/ssm/supabase/README.md) for the schema summary and migration notes.
+
+For the frontend, define these Vite env vars:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+```
 
 ## Run The Backend
 
@@ -116,9 +132,10 @@ pytest -q server/backend/tests/test_api.py
 
 ## Current Frontend Flow
 
-- enter a user ID on the login page
-- load that user's portfolio
-- view owned stocks, market assets, and chart data
+- register or sign in with email/password through Supabase Auth
+- create the trading user record automatically the first time an authenticated user opens the dashboard
+- load portfolio holdings from the API and cash balances from `public.user_accounts`
+- default the chart to the signed-in user's issued asset when one exists
+- browse the market list and inspect Heikin Ashi candles for any asset with trade history
 
-If the user does not exist, the frontend shows the backend error message.
-
+If an asset has no trade history yet, the chart panel shows an empty-state message instead of candles.

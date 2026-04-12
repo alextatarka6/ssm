@@ -130,7 +130,7 @@ class MatchingEngine:
 
     # ------ Public API ------
 
-    def set_user_default(self, user_id: str, initial_cash_cents: int = 100_000) -> None:
+    def set_user_default(self, user_id: str, initial_cash_cents: int = 500_000) -> None:
         if self.accounts.get(user_id) is None:
             self.accounts[user_id] = Account(cash_cents=initial_cash_cents)
             self._emit(
@@ -163,7 +163,7 @@ class MatchingEngine:
             issuer_user_id: str, 
             asset_id: str,
             total_supply: int = 1000,
-            issuer_pct: float = 0.6,
+            issuer_pct: float = 0.4,
             name: str | None = None,
             ) -> None:
         
@@ -173,6 +173,8 @@ class MatchingEngine:
             raise ValueError("Asset already exists")
         if total_supply <= 0:
             raise ValueError("Total supply must be positive")
+        if not 0 < issuer_pct < 1:
+            raise ValueError("Issuer percentage must be between 0 and 1")
 
         self.assets[asset_id] = Asset(
             asset_id=asset_id,
@@ -181,9 +183,13 @@ class MatchingEngine:
             name=name or f"{issuer_user_id}'s {asset_id}"
         )
 
+        issuer_shares = round(total_supply * issuer_pct)
+        treasury_shares = total_supply - issuer_shares
+
         if self.accounts.get(TREASURY_USER) is None:
             self.set_user_default(TREASURY_USER, 0)
-        self._getholding(TREASURY_USER, asset_id).shares += total_supply
+        self._getholding(issuer_user_id, asset_id).shares += issuer_shares
+        self._getholding(TREASURY_USER, asset_id).shares += treasury_shares
         self.set_asset_default(asset_id)
 
         # Emit asset creation event with treasury issuance details.
@@ -195,7 +201,8 @@ class MatchingEngine:
             issuer_user_id=issuer_user_id,
             total_supply=total_supply,
             distribution=[
-                {"user_id": TREASURY_USER, "shares": total_supply},
+                {"user_id": issuer_user_id, "shares": issuer_shares},
+                {"user_id": TREASURY_USER, "shares": treasury_shares},
             ],
         )
 
@@ -204,8 +211,21 @@ class MatchingEngine:
             next(_seq_gen),
             asset_id=asset_id,
             from_user_id=None,
+            to_user_id=issuer_user_id,
+            shares=issuer_shares,
+            reason="ISSUANCE",
+        )
+
+        if treasury_shares == 0:
+            return
+
+        self._emit(
+            EventType.SHARES_MOVED,
+            next(_seq_gen),
+            asset_id=asset_id,
+            from_user_id=None,
             to_user_id=TREASURY_USER,
-            shares=total_supply,
+            shares=treasury_shares,
             reason="ISSUANCE",
         )
 
@@ -545,16 +565,16 @@ class MatchingEngine:
                 to_user = data.get("to_user_id")
                 cash_cents = data["cash_cents"]
                 if from_user:
-                    self._acct(from_user).cash_cents -= cash_cents
+                    self.accounts[from_user].cash_cents -= cash_cents
                 if to_user:
-                    self._acct(to_user).cash_cents += cash_cents
+                    self.accounts[to_user].cash_cents += cash_cents
 
             elif event_type == EventType.SHARES_MOVED:
                 asset_id = data["asset_id"]
                 from_user = data.get("from_user_id")
                 to_user = data.get("to_user_id")
                 shares = data["shares"]
-                self.ensureBook(asset_id)
+                self.set_asset_default(asset_id)
                 if from_user:
                     self._getholding(from_user, asset_id).shares -= shares
                 if to_user:

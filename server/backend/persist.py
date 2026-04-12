@@ -2,6 +2,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -15,7 +16,7 @@ def _get_value(record: Any, key: str) -> Any:
 
 
 def _param(conn: Any, index: int) -> str:
-    return "?" if _is_sqlite(conn) else f"${index}"
+    return "?" if _is_sqlite(conn) else "%s"
 
 
 def _placeholders(conn: Any, count: int) -> str:
@@ -62,6 +63,8 @@ def persist_engine_results(
             data_value = _get_value(event, "data")
             if _is_sqlite(conn) and isinstance(data_value, dict):
                 data_value = json.dumps(data_value)
+            elif not _is_sqlite(conn) and isinstance(data_value, dict):
+                data_value = Jsonb(data_value)
 
             query = (
                 "INSERT INTO events (ts_seq, type, data) VALUES (" +
