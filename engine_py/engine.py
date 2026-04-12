@@ -156,7 +156,8 @@ class MatchingEngine:
             issuer_user_id: str, 
             asset_id: str,
             total_supply: int = 1000,
-            issuer_pct: float = 0.6
+            issuer_pct: float = 0.6,
+            name: str | None = None,
             ) -> None:
         
         self.validate_user(issuer_user_id)
@@ -165,41 +166,41 @@ class MatchingEngine:
             raise ValueError("Asset already exists")
         if total_supply <= 0:
             raise ValueError("Total supply must be positive")
-        if not (0 < issuer_pct < 1):
-            raise ValueError("Issuer percentage must be between 0 and 1")
 
         self.assets[asset_id] = Asset(
             asset_id=asset_id,
             issuer_user_id=issuer_user_id,
             total_supply=total_supply,
-            # TODO - allow custom names
-            name=f"{issuer_user_id}'s {asset_id}"
+            name=name or f"{issuer_user_id}'s {asset_id}"
         )
-
-        issuer_shares = int(round(total_supply * issuer_pct))
-        treasury_shares = total_supply - issuer_shares
 
         if self.accounts.get(TREASURY_USER) is None:
             self.set_user_default(TREASURY_USER, 0)
-        self._getholding(issuer_user_id, asset_id).shares += issuer_shares
-        self._getholding(TREASURY_USER, asset_id).shares += treasury_shares
+        self._getholding(TREASURY_USER, asset_id).shares += total_supply
+        self.set_asset_default(asset_id)
 
-        # Emit asset creation event with initial distribution details
+        # Emit asset creation event with treasury issuance details.
         seq = next(_seq_gen)
         self._emit(
-            EventType.ASSET_CREATED, 
-            seq, 
-            asset_id=asset_id, 
-            issuer_user_id=issuer_user_id, 
-            total_supply=total_supply, 
+            EventType.ASSET_CREATED,
+            seq,
+            asset_id=asset_id,
+            issuer_user_id=issuer_user_id,
+            total_supply=total_supply,
             distribution=[
-                {"user_id": issuer_user_id, "shares": issuer_shares},         
-                {"user_id": TREASURY_USER, "shares": treasury_shares},
+                {"user_id": TREASURY_USER, "shares": total_supply},
             ],
         )
 
-        self._emit(EventType.SHARES_MOVED, next(_seq_gen), asset_id=asset_id, from_user_id=None, to_user_id=issuer_user_id, shares=issuer_shares, reason="ISSUANCE")
-        self._emit(EventType.SHARES_MOVED, next(_seq_gen), asset_id=asset_id, from_user_id=None, to_user_id="TREASURY", shares=treasury_shares, reason="ISSUANCE")
+        self._emit(
+            EventType.SHARES_MOVED,
+            next(_seq_gen),
+            asset_id=asset_id,
+            from_user_id=None,
+            to_user_id=TREASURY_USER,
+            shares=total_supply,
+            reason="ISSUANCE",
+        )
 
 
     def process_order(self, req: NewOrder) -> Tuple[Order, List[Trade]]:
@@ -430,6 +431,8 @@ class MatchingEngine:
             raise ValueError("Limit price must be positive")
         self.validate_user(req.user_id)
         self.validate_asset(req.asset_id)
+        if self.assets[req.asset_id].issuer_user_id == req.user_id and req.side == Side.BUY:
+            raise ValueError("Users may not buy their own stock")
 
     def _reserve_for_order(self, order: Order) -> None:
         if order.side == Side.BUY:
@@ -490,34 +493,82 @@ class MatchingEngine:
         self.events.append(event)
         return event
     
-    def rebuild_from_events(self) -> None:
-        # wipe derived states
+    def rebuild_from_events(self, rows=None, active_orders=None) -> None:
+        if rows is None:
+            rows = list(self.events)
+
         self.wipe()
+        self.accounts.clear()
+        self.holdings.clear()
+        self.assets.clear()
+        self.books.clear()
+        self.orders.clear()
+        self.last_price_cents.clear()
+        self.events = []
 
-        # recreate default user accounts
-        # assumes that all users are created upfront with current default starting cash and never deleted
-        self.default_users()
+        def _event_key(raw):
+            seq = raw.ts_seq if hasattr(raw, "ts_seq") else raw["ts_seq"]
+            ev_id = raw.id if hasattr(raw, "id") else raw.get("id", 0)
+            return (seq, ev_id)
 
-        # for now just rebuild balances from ledger events
-        for event in sorted(self.events, key=lambda e: (e.ts_seq, e.id)):
-            if event.type == EventType.CASH_MOVED:
-                from_user = event.data["from_user_id"]
-                to_user = event.data["to_user_id"]
-                cash_cents = event.data["cash_cents"]
+        for raw in sorted(rows, key=_event_key):
+            event_type = raw.type if hasattr(raw, "type") else raw["type"]
+            data = raw.data if hasattr(raw, "data") else raw["data"]
+
+            if event_type == EventType.ASSET_CREATED:
+                asset_id = data["asset_id"]
+                issuer_user_id = data["issuer_user_id"]
+                total_supply = data["total_supply"]
+                name = data.get("name", f"{issuer_user_id}'s {asset_id}")
+                self.assets[asset_id] = Asset(
+                    asset_id=asset_id,
+                    issuer_user_id=issuer_user_id,
+                    total_supply=total_supply,
+                    name=name,
+                )
+                self.set_asset_default(asset_id)
+
+            elif event_type == EventType.CASH_MOVED:
+                from_user = data.get("from_user_id")
+                to_user = data.get("to_user_id")
+                cash_cents = data["cash_cents"]
                 if from_user:
-                    self.accounts[from_user].cash_cents -= cash_cents
+                    self._acct(from_user).cash_cents -= cash_cents
                 if to_user:
-                    self.accounts[to_user].cash_cents += cash_cents
-                    
-            elif event.type == EventType.SHARES_MOVED:
-                from_user = event.data["from_user_id"]
-                to_user = event.data["to_user_id"]
-                asset_id = event.data["asset_id"]
-                shares = event.data["shares"]
+                    self._acct(to_user).cash_cents += cash_cents
+
+            elif event_type == EventType.SHARES_MOVED:
+                asset_id = data["asset_id"]
+                from_user = data.get("from_user_id")
+                to_user = data.get("to_user_id")
+                shares = data["shares"]
+                self.ensureBook(asset_id)
                 if from_user:
                     self._getholding(from_user, asset_id).shares -= shares
                 if to_user:
                     self._getholding(to_user, asset_id).shares += shares
+
+            elif event_type == EventType.TRADE_EXECUTED:
+                asset_id = data["asset_id"]
+                self.last_price_cents[asset_id] = data["price_cents"]
+
+        if active_orders is not None:
+            for raw in active_orders:
+                order = Order(
+                    id=raw["id"],
+                    user_id=raw["user_id"],
+                    asset_id=raw["asset_id"],
+                    side=Side(raw["side"]),
+                    qty=raw["qty"],
+                    remaining_qty=raw["remaining_qty"],
+                    limit_price_cents=raw["limit_price_cents"],
+                    status=OrderStatus(raw["status"]),
+                    seq=raw["seq"],
+                )
+                self.orders[order.id] = order
+                if order.status in (OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED) and order.remaining_qty > 0:
+                    self._reserve_for_order(order)
+                    self._add_to_book(order)
 
     def wipe(self) -> None:
         for acct in self.accounts.values():
