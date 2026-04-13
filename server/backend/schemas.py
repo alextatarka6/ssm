@@ -65,6 +65,7 @@ class AssetResponse(BaseModel):
     total_supply: int
     name: Optional[str]
     last_price_cents: Optional[int]
+    sell_order_shares: int = 0
 
 
 class HoldingResponse(BaseModel):

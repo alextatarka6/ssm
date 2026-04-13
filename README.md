@@ -4,13 +4,12 @@ SSM is a small stock-simulation project with:
 
 - a Python FastAPI backend for trading, portfolios, and query endpoints
 - a React + Vite frontend for Supabase auth, portfolio viewing, market browsing, and charting
-- a Python matching engine in `engine_py/`
+- a Python matching engine in `server/backend/engine.py`
 
 ## Project Layout
 
 ```text
-engine_py/              Matching engine and core trading logic
-server/backend/         FastAPI backend, routes, persistence, tests
+server/backend/         FastAPI backend, matching engine, routes, persistence, tests
 server/frontend/        React frontend
 ```
 

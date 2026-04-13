@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from engine_py.engine import Account, Asset, Book, EventType, Holding, Order, OrderStatus, Side, TREASURY_USER, set_generator_state
+from .engine import Account, Asset, Book, EventType, Holding, Order, OrderStatus, Side, TREASURY_USER, set_generator_state
 
 
 def _is_sqlite(conn: Any) -> bool:

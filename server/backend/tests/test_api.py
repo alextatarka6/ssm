@@ -8,7 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from engine_py.engine import MatchingEngine, TREASURY_USER
+from server.backend.engine import MatchingEngine, TREASURY_USER
 from server.backend.routes.assets import create_asset
 from server.backend.routes.orders import cancel_order, place_order
 from server.backend.routes.users import create_user

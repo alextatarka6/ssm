@@ -8,7 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from engine_py.engine import EventType, MatchingEngine, NewOrder, Side, get_generator_state, set_generator_state
+from server.backend.engine import EventType, MatchingEngine, NewOrder, Side, get_generator_state, set_generator_state
 from server.backend.db import SQLiteConnection
 from server.backend.persist import persist_engine_results, sync_engine_from_database
 

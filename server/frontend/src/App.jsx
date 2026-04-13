@@ -183,6 +183,7 @@ export default function App() {
     0,
   );
   const isActiveAssetIssuedByUser = activeAsset?.issuer_user_id === sessionUserId;
+  const buyableShares = activeAsset?.sell_order_shares || 0;
   const estimatedOrderValueCents =
     orderQuantityValue && orderLimitPriceCents
       ? orderQuantityValue * orderLimitPriceCents
@@ -800,7 +801,7 @@ export default function App() {
         <section className="panel panel-wide">
           <div className="panel-header">
             <div>
-              <h2>{activeAssetDisplayName ? `${activeAssetDisplayName} Heikin Ashi Chart` : "Asset Chart"}</h2>
+              <h2>{activeAssetDisplayName || "Selected Stock"}</h2>
               <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
             </div>
           </div>
@@ -840,6 +841,10 @@ export default function App() {
                     <div className="trade-stat-card">
                       <span>Cash ready</span>
                       <strong>{formatCurrency(availableCashCents)}</strong>
+                    </div>
+                    <div className="trade-stat-card">
+                      <span>Buyable shares</span>
+                      <strong>{buyableShares}</strong>
                     </div>
                     <div className="trade-stat-card">
                       <span>Sellable shares</span>
@@ -960,9 +965,7 @@ export default function App() {
                       {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
                       {owned ? <span className="card-badge">Owned</span> : null}
                     </div>
-                    <p>Issuer: {getAssetIssuerName(asset, { sessionUserId, sessionUsername })}</p>
-                    <p>Ticker: {asset.asset_id}</p>
-                    <p>Total supply: {asset.total_supply}</p>
+                    <p>Buyable shares: {asset.sell_order_shares || 0}</p>
                     <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
                   </article>
                 );

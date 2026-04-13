@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -6,12 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-# Ensure the repository root is on sys.path so engine_py imports correctly.
-ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from engine_py.engine import (
+from .engine import (
     MatchingEngine,
     InsufficientFunds,
     InsufficientShares,

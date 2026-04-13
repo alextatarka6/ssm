@@ -34,6 +34,17 @@ def _parse_row(row: Any) -> dict:
     return dict(row)
 
 
+def _get_open_sell_order_shares(engine: Any, asset_id: str) -> int:
+    return sum(
+        order.remaining_qty
+        for order in engine.orders.values()
+        if order.asset_id == asset_id
+        and order.side == "SELL"
+        and order.status in ("OPEN", "PARTIALLY_FILLED")
+        and order.remaining_qty > 0
+    )
+
+
 @router.get("/assets", response_model=list[AssetResponse])
 def list_assets(request: Request):
     with get_connection() as conn:
@@ -47,6 +58,7 @@ def list_assets(request: Request):
                     total_supply=asset.total_supply,
                     name=asset.name,
                     last_price_cents=engine.last_price_cents.get(asset.asset_id),
+                    sell_order_shares=_get_open_sell_order_shares(engine, asset.asset_id),
                 )
                 for asset in engine.assets.values()
             ]
@@ -67,7 +79,15 @@ def list_assets(request: Request):
                     where t.asset_id = a.asset_id
                     order by t.ts_seq desc, t.id desc
                     limit 1
-                  ) as last_price_cents
+                  ) as last_price_cents,
+                  coalesce((
+                    select sum(o.remaining_qty)
+                    from public.orders o
+                    where o.asset_id = a.asset_id
+                      and o.side = 'SELL'
+                      and o.status in ('OPEN', 'PARTIALLY_FILLED')
+                      and o.remaining_qty > 0
+                  ), 0) as sell_order_shares
                 from public.assets a
                 join public.profiles p on p.id = a.issuer_auth_user_id
                 order by a.created_at asc, a.asset_id asc
@@ -95,6 +115,7 @@ def get_asset(asset_id: str, request: Request):
                 total_supply=asset.total_supply,
                 name=asset.name,
                 last_price_cents=engine.last_price_cents.get(asset.asset_id),
+                sell_order_shares=_get_open_sell_order_shares(engine, asset.asset_id),
             )
 
         cur = conn.cursor(row_factory=dict_row)
@@ -113,7 +134,15 @@ def get_asset(asset_id: str, request: Request):
                     where t.asset_id = a.asset_id
                     order by t.ts_seq desc, t.id desc
                     limit 1
-                  ) as last_price_cents
+                  ) as last_price_cents,
+                  coalesce((
+                    select sum(o.remaining_qty)
+                    from public.orders o
+                    where o.asset_id = a.asset_id
+                      and o.side = 'SELL'
+                      and o.status in ('OPEN', 'PARTIALLY_FILLED')
+                      and o.remaining_qty > 0
+                  ), 0) as sell_order_shares
                 from public.assets a
                 join public.profiles p on p.id = a.issuer_auth_user_id
                 where a.asset_id = %s
