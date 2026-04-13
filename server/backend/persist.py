@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from engine_py.engine import Account, Asset, Book, Holding, Order, OrderStatus, Side, TREASURY_USER
+from engine_py.engine import Account, Asset, Book, EventType, Holding, Order, OrderStatus, Side, TREASURY_USER, set_generator_state
 
 
 def _is_sqlite(conn: Any) -> bool:
@@ -25,10 +25,83 @@ def _placeholders(conn: Any, count: int) -> str:
     return ", ".join(_param(conn, idx + 1) for idx in range(count))
 
 
+def _load_generator_state(conn: Any) -> Dict[str, int]:
+    cur = conn.cursor(row_factory=dict_row)
+    try:
+        if _is_sqlite(conn):
+            cur.execute(
+                """
+                SELECT
+                  COALESCE((SELECT MAX(id) FROM orders), 0) AS max_order_id,
+                  COALESCE((SELECT MAX(id) FROM trades), 0) AS max_trade_id,
+                  COALESCE((SELECT MAX(id) FROM events), 0) AS max_event_id,
+                  COALESCE((SELECT MAX(seq) FROM orders), 0) AS max_order_seq,
+                  COALESCE((SELECT MAX(ts_seq) FROM trades), 0) AS max_trade_seq,
+                  COALESCE((SELECT MAX(ts_seq) FROM events), 0) AS max_event_seq
+                """
+            )
+        else:
+            cur.execute(
+                """
+                SELECT
+                  COALESCE((SELECT MAX(id) FROM public.orders), 0) AS max_order_id,
+                  COALESCE((SELECT MAX(id) FROM public.trades), 0) AS max_trade_id,
+                  COALESCE((SELECT MAX(id) FROM public.events), 0) AS max_event_id,
+                  COALESCE((SELECT MAX(seq) FROM public.orders), 0) AS max_order_seq,
+                  COALESCE((SELECT MAX(ts_seq) FROM public.trades), 0) AS max_trade_seq,
+                  COALESCE((SELECT MAX(ts_seq) FROM public.events), 0) AS max_event_seq
+                """
+            )
+        row = cur.fetchone()
+    finally:
+        cur.close()
+
+    max_seq = max(row["max_order_seq"], row["max_trade_seq"], row["max_event_seq"])
+    return {
+        "next_order_id": row["max_order_id"] + 1,
+        "next_trade_id": row["max_trade_id"] + 1,
+        "next_seq": max_seq + 1,
+        "next_event_id": row["max_event_id"] + 1,
+    }
+
+
+def _sync_generators_from_database(conn: Any) -> None:
+    set_generator_state(**_load_generator_state(conn))
+
+
+def _trade_sequence_by_id(events: List[Any]) -> Dict[int, int]:
+    seq_by_trade_id: Dict[int, int] = {}
+    for event in events:
+        event_type = _get_value(event, "type")
+        if event_type not in (EventType.TRADE_EXECUTED, EventType.TRADE_EXECUTED.value):
+            continue
+
+        data = _get_value(event, "data")
+        trade_id = data.get("trade_id")
+        if trade_id is None:
+            continue
+        seq_by_trade_id[trade_id] = _get_value(event, "ts_seq")
+    return seq_by_trade_id
+
+
+def _resolve_trade_ts_seq(trade: Any, trade_seq_by_id: Dict[int, int]) -> int:
+    if isinstance(trade, dict) and "ts_seq" in trade:
+        return trade["ts_seq"]
+
+    trade_ts_seq = getattr(trade, "ts_seq", None)
+    if trade_ts_seq is not None:
+        return trade_ts_seq
+
+    trade_id = _get_value(trade, "id")
+    if trade_id not in trade_seq_by_id:
+        raise ValueError(f"Missing TRADE_EXECUTED event sequence for trade {trade_id}")
+    return trade_seq_by_id[trade_id]
+
+
 def load_all_events(conn: Any) -> List[Dict[str, Any]]:
     cur = conn.cursor(row_factory=dict_row)
     try:
-        cur.execute("SELECT ts_seq, type, data FROM events ORDER BY ts_seq ASC, id ASC")
+        cur.execute("SELECT id, ts_seq, type, data FROM events ORDER BY ts_seq ASC, id ASC")
         rows = cur.fetchall()
     finally:
         cur.close()
@@ -38,7 +111,7 @@ def load_all_events(conn: Any) -> List[Dict[str, Any]]:
         event_data = row["data"]
         if isinstance(event_data, str):
             event_data = json.loads(event_data)
-        events.append({"ts_seq": row["ts_seq"], "type": row["type"], "data": event_data})
+        events.append({"id": row["id"], "ts_seq": row["ts_seq"], "type": row["type"], "data": event_data})
     return events
 
 
@@ -76,6 +149,7 @@ def sync_engine_from_database(engine: Any, conn: Any) -> None:
         events = load_all_events(conn)
         orders = load_all_orders(conn)
         engine.rebuild_from_events(events, active_orders=orders)
+        _sync_generators_from_database(conn)
         return
 
     cur = conn.cursor(row_factory=dict_row)
@@ -183,6 +257,7 @@ def sync_engine_from_database(engine: Any, conn: Any) -> None:
         engine._add_to_book(order)
 
     engine.events = []
+    _sync_generators_from_database(conn)
 
 
 def _sync_public_state(conn: Any, engine: Any, events: List[Any], order: Optional[Any], trades: List[Any]) -> None:
@@ -298,9 +373,12 @@ def persist_engine_results(
     trades: Optional[List[Any]] = None,
     engine: Optional[Any] = None,
 ) -> None:
+    persisted_events = list(events or [])
+    trade_seq_by_id = _trade_sequence_by_id(persisted_events)
+
     cur = conn.cursor()
     try:
-        for event in events or []:
+        for event in persisted_events:
             data_value = _get_value(event, "data")
             if _is_sqlite(conn) and isinstance(data_value, dict):
                 data_value = json.dumps(data_value)
@@ -370,6 +448,7 @@ def persist_engine_results(
                 )
 
         for trade in trades or []:
+            trade_ts_seq = _resolve_trade_ts_seq(trade, trade_seq_by_id)
             if _is_sqlite(conn):
                 query = (
                     "INSERT INTO trades (id, ts_seq, asset_id, price_cents, qty, buy_order_id, sell_order_id, buyer_id, seller_id) VALUES (" +
@@ -378,7 +457,7 @@ def persist_engine_results(
                 )
                 cur.execute(query, (
                     _get_value(trade, "id"),
-                    _get_value(trade, "ts_seq"),
+                    trade_ts_seq,
                     _get_value(trade, "asset_id"),
                     _get_value(trade, "price_cents"),
                     _get_value(trade, "qty"),
@@ -405,7 +484,7 @@ def persist_engine_results(
                     """,
                     (
                         _get_value(trade, "id"),
-                        _get_value(trade, "ts_seq"),
+                        trade_ts_seq,
                         _get_value(trade, "asset_id"),
                         _get_value(trade, "price_cents"),
                         _get_value(trade, "qty"),
@@ -419,4 +498,4 @@ def persist_engine_results(
         cur.close()
 
     if not _is_sqlite(conn) and engine is not None:
-        _sync_public_state(conn, engine, list(events or []), order, list(trades or []))
+        _sync_public_state(conn, engine, persisted_events, order, list(trades or []))

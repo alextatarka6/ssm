@@ -24,6 +24,30 @@ _trade_id_gen = count(1)
 _seq_gen = count(1) # Global time-priority sequence generator for all events
 _event_id_gen = count(1) # Global event ID generator for all events (orders, trades, cancels, etc)
 
+
+def get_generator_state() -> Dict[str, int]:
+    return {
+        "next_order_id": _order_id_gen.__reduce__()[1][0],
+        "next_trade_id": _trade_id_gen.__reduce__()[1][0],
+        "next_seq": _seq_gen.__reduce__()[1][0],
+        "next_event_id": _event_id_gen.__reduce__()[1][0],
+    }
+
+
+def set_generator_state(
+    *,
+    next_order_id: int = 1,
+    next_trade_id: int = 1,
+    next_seq: int = 1,
+    next_event_id: int = 1,
+) -> None:
+    global _order_id_gen, _trade_id_gen, _seq_gen, _event_id_gen
+
+    _order_id_gen = count(next_order_id)
+    _trade_id_gen = count(next_trade_id)
+    _seq_gen = count(next_seq)
+    _event_id_gen = count(next_event_id)
+
 @dataclass(frozen=True)
 class NewOrder:
     """

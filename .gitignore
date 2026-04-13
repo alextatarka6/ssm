@@ -14,5 +14,5 @@ server/backend/local.db
 supabase/.temp/
 supabase/.branches/
 
-hypnotizing black and white GIF.gif
+assets/
 Makefile
