@@ -1,10 +1,11 @@
 :root {
   color-scheme: dark;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 28%),
-    linear-gradient(180deg, #020617 0%, #07111f 100%);
-  color: #e2e8f0;
+    radial-gradient(circle at top left, rgba(248, 211, 126, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(221, 92, 64, 0.14), transparent 24%),
+    linear-gradient(180deg, #171314 0%, #0f0b0c 100%);
+  color: #f2e9df;
 }
 
 * {
@@ -20,7 +21,7 @@ body,
 
 body {
   background: transparent;
-  color: #cbd5e1;
+  color: #d8cfc5;
 }
 
 button,
@@ -41,22 +42,50 @@ button {
 
 .login-shell {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.login-shell::before,
+.login-shell::after {
+  content: "";
+  position: fixed;
+  inset: auto;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.85;
+}
+
+.login-shell::before {
+  width: 320px;
+  height: 320px;
+  top: 64px;
+  left: max(24px, calc(50% - 680px));
+  background: radial-gradient(circle, rgba(213, 152, 95, 0.2), transparent 66%);
+}
+
+.login-shell::after {
+  width: 360px;
+  height: 360px;
+  right: max(12px, calc(50% - 720px));
+  bottom: 32px;
+  background: radial-gradient(circle, rgba(147, 84, 61, 0.18), transparent 70%);
 }
 
 .login-card,
 .panel {
-  background: rgba(15, 23, 42, 0.84);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 24px;
-  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.45);
+  background: rgba(25, 19, 20, 0.84);
+  border: 1px solid rgba(255, 240, 223, 0.1);
+  border-radius: 28px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
 }
 
 .login-card {
-  width: min(520px, 100%);
-  padding: 32px;
+  width: min(420px, 100%);
+  padding: 0;
 }
 
 .login-card h1,
@@ -64,12 +93,82 @@ button {
   margin: 0;
   font-size: clamp(2rem, 3vw, 3rem);
   line-height: 1.05;
-  color: #f8fafc;
+  color: #fff7ed;
+}
+
+.login-wordmark {
+  position: fixed;
+  top: 32px;
+  left: max(24px, calc(50% - 616px));
+  z-index: 2;
+  color: #f5efe7;
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  font-size: 13.12px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-transform: lowercase;
+}
+
+.auth-layout {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  gap: 32px;
+  align-items: stretch;
+  padding: 88px 0 32px;
+}
+
+.login-visual {
+  position: relative;
+  min-height: calc(100vh - 120px);
+  border-radius: 32px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(8, 7, 7, 0.08), rgba(8, 7, 7, 0.28)),
+    url("/login-visual.gif") center center / cover no-repeat;
+  border: 1px solid rgba(255, 240, 223, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.login-visual-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), transparent 22%),
+    linear-gradient(135deg, rgba(15, 12, 12, 0.08), rgba(15, 12, 12, 0.34));
+}
+
+.auth-card,
+.auth-panel {
+  border-radius: 22px;
+  min-width: 0;
+}
+
+.auth-panel {
+  padding: 34px 30px 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.03), rgba(255, 247, 237, 0.01)),
+    rgba(10, 8, 9, 0.72);
+  border: 1px solid rgba(255, 245, 232, 0.08);
+  min-height: calc(100vh - 120px);
+}
+
+.auth-panel-header {
+  margin-bottom: 22px;
+}
+
+.auth-panel-header h2 {
+  margin: 0;
+  color: #fff7ed;
+  font-size: clamp(1.8rem, 2.3vw, 2.3rem);
+  line-height: 1.08;
 }
 
 .eyebrow {
   margin: 0 0 10px;
-  color: #7dd3fc;
+  color: #efc28b;
   font-size: 0.82rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -79,41 +178,43 @@ button {
 .topbar p,
 .panel-copy,
 .helper-copy {
-  color: #94a3b8;
+  color: #b8aa9d;
 }
 
 .login-copy {
   margin: 14px 0 0;
-  line-height: 1.6;
+  max-width: 38rem;
+  line-height: 1.7;
+  font-size: 1.02rem;
 }
 
 .login-form {
   display: grid;
   gap: 12px;
-  margin: 28px 0 0;
+  margin: 0;
 }
 
 .auth-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 28px;
+  margin: 20px 0 22px;
 }
 
 .auth-toggle button {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid #334155;
-  background: rgba(2, 6, 23, 0.65);
-  color: #cbd5e1;
+  border: 1px solid rgba(255, 243, 224, 0.08);
+  background: rgba(255, 247, 237, 0.03);
+  color: #cbbeb2;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
 .auth-toggle button.active {
-  border-color: #38bdf8;
-  background: rgba(14, 165, 233, 0.18);
-  color: #f8fafc;
+  border-color: rgba(243, 192, 126, 0.42);
+  background: rgba(235, 181, 107, 0.12);
+  color: #fff7ed;
 }
 
 .auth-toggle button:hover {
@@ -121,41 +222,103 @@ button {
 }
 
 .login-form label {
-  color: #cbd5e1;
-  font-size: 0.95rem;
+  color: #ede0d3;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .login-form input,
 .panel-header input {
   width: 100%;
-  border: 1px solid #334155;
-  border-radius: 14px;
-  padding: 12px 14px;
-  color: #e2e8f0;
-  background: rgba(2, 6, 23, 0.9);
+  border: 1px solid rgba(255, 245, 232, 0.08);
+  border-radius: 16px;
+  padding: 14px 15px;
+  color: #fff4e8;
+  background: rgba(255, 247, 237, 0.03);
 }
 
-.login-form button,
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 60px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #f0bf78;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.password-toggle-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.password-toggle:hover {
+  background: rgba(240, 191, 120, 0.08);
+  color: #ffd29a;
+  transform: translateY(-50%);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(240, 191, 120, 0.55);
+  outline-offset: 2px;
+  background: rgba(240, 191, 120, 0.1);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.auth-submit-button,
 .ghost-button {
-  border-radius: 14px;
-  padding: 12px 16px;
+  border-radius: 16px;
+  padding: 13px 16px;
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
-.login-form button {
+.auth-submit-button {
   margin-top: 8px;
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
-  color: #eff6ff;
-  font-weight: 600;
+  background: linear-gradient(135deg, #f0bf78, #d18354);
+  color: #1e1310;
+  font-weight: 800;
   cursor: pointer;
 }
 
-.login-form button:disabled {
+.auth-submit-button:disabled {
   cursor: wait;
   opacity: 0.7;
 }
 
-.login-form button:hover:not(:disabled),
+.auth-submit-button:hover:not(:disabled),
 .ghost-button:hover {
   transform: translateY(-1px);
 }
@@ -180,9 +343,14 @@ button {
 
 .ghost-button {
   background: transparent;
-  border: 1px solid #334155;
-  color: #e2e8f0;
+  border: 1px solid rgba(255, 245, 232, 0.08);
+  color: #f1e5d7;
   cursor: pointer;
+}
+
+.auth-secondary-action {
+  width: 100%;
+  margin-top: 14px;
 }
 
 .content-grid {
@@ -200,6 +368,10 @@ button {
 
 .market-panel {
   grid-column: 1 / -1;
+}
+
+.trade-panel {
+  align-self: start;
 }
 
 .panel-header {
@@ -240,6 +412,98 @@ button {
   gap: 16px;
 }
 
+.trade-panel-body {
+  display: grid;
+  gap: 18px;
+}
+
+.trade-asset-summary {
+  display: grid;
+  gap: 18px;
+}
+
+.trade-asset-summary h3 {
+  margin: 0;
+  color: #fff7ed;
+  font-size: 1.5rem;
+}
+
+.trade-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.trade-stat-card {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 245, 232, 0.08);
+  background: rgba(6, 10, 21, 0.58);
+}
+
+.trade-stat-card span {
+  display: block;
+  color: #b8aa9d;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.trade-stat-card strong {
+  color: #fff7ed;
+  font-size: 1.05rem;
+}
+
+.trade-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trade-toggle button {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 243, 224, 0.08);
+  background: rgba(255, 247, 237, 0.03);
+  color: #cbbeb2;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.trade-toggle button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.trade-toggle button.active {
+  border-color: rgba(243, 192, 126, 0.42);
+  background: rgba(235, 181, 107, 0.12);
+  color: #fff7ed;
+}
+
+.trade-toggle button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trade-form {
+  display: grid;
+  gap: 12px;
+}
+
+.trade-form label {
+  color: #ede0d3;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.trade-form input {
+  width: 100%;
+  border: 1px solid rgba(255, 245, 232, 0.08);
+  border-radius: 16px;
+  padding: 14px 15px;
+  color: #fff4e8;
+  background: rgba(255, 247, 237, 0.03);
+}
+
 .position-card {
   background: rgba(2, 6, 23, 0.8);
   border: 1px solid #334155;
@@ -251,7 +515,7 @@ button {
 
 .position-card:hover,
 .position-card.selected {
-  border-color: #38bdf8;
+  border-color: #f0bf78;
   background: rgba(12, 21, 39, 0.95);
   transform: translateY(-2px);
 }
@@ -276,8 +540,8 @@ button {
 .card-badge {
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(14, 165, 233, 0.18);
-  color: #7dd3fc;
+  background: rgba(240, 191, 120, 0.14);
+  color: #f0bf78;
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -294,21 +558,25 @@ button {
 }
 
 .error-banner {
-  background: rgba(127, 29, 29, 0.9);
-  color: #fee2e2;
-  border-radius: 16px;
-  padding: 14px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(248, 113, 113, 0.25);
-}
-
-.helper-banner {
-  background: rgba(8, 145, 178, 0.18);
-  color: #bae6fd;
+  background: rgba(88, 29, 24, 0.88);
+  color: #ffe0d7;
   border-radius: 16px;
   padding: 14px;
   margin-top: 18px;
-  border: 1px solid rgba(125, 211, 252, 0.24);
+  border: 1px solid rgba(255, 132, 102, 0.22);
+}
+
+.helper-banner {
+  background: rgba(203, 147, 89, 0.12);
+  color: #f6d4b2;
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 18px;
+  border: 1px solid rgba(240, 191, 120, 0.18);
+}
+
+.trade-message {
+  margin: 0;
 }
 
 .chart-container {
@@ -325,5 +593,55 @@ button {
 @media (max-width: 899px) {
   .topbar {
     flex-direction: column;
+  }
+
+  .auth-layout {
+    grid-template-columns: 1fr;
+    padding-top: 76px;
+  }
+
+  .login-visual {
+    min-height: 320px;
+    order: 2;
+  }
+
+  .auth-panel {
+    padding: 24px;
+    min-height: auto;
+  }
+
+  .login-card {
+    width: min(460px, 100%);
+    justify-self: end;
+  }
+
+  .login-wordmark {
+    left: 24px;
+    top: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-shell,
+  .app-shell {
+    width: min(100%, calc(100% - 20px));
+    padding: 10px 0 28px;
+  }
+
+  .login-card {
+    width: 100%;
+  }
+
+  .auth-layout {
+    gap: 16px;
+    padding-top: 68px;
+  }
+
+  .auth-panel {
+    padding: 20px;
+  }
+
+  .login-visual {
+    min-height: 240px;
   }
 }

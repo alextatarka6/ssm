@@ -19,7 +19,7 @@ from engine_py.engine import (
     UnknownAsset,
 )
 from .db import get_connection
-from .persist import load_all_events, load_all_orders
+from .persist import sync_engine_from_database
 from .routes.users import router as users_router
 from .routes.assets import router as assets_router
 from .routes.orders import router as orders_router
@@ -44,9 +44,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event() -> None:
     with get_connection() as conn:
-        events = load_all_events(conn)
-        orders = load_all_orders(conn)
-    engine.rebuild_from_events(events, active_orders=orders)
+        sync_engine_from_database(engine, conn)
     app.state.engine = engine
 
 @app.exception_handler(UnknownUser)

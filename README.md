@@ -34,7 +34,7 @@ The backend loads environment variables from:
 server/backend/.env
 ```
 
-If `DATABASE_URL` is not set, it falls back to a local SQLite database.
+Set `DATABASE_URL` to the same Postgres database used by your Supabase project so auth-linked market state and backend queries stay in sync. If `DATABASE_URL` is not set, it falls back to a local SQLite database.
 
 ## Supabase
 

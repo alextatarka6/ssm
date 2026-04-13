@@ -36,32 +36,98 @@ def _parse_row(row: Any) -> dict:
 
 @router.get("/assets", response_model=list[AssetResponse])
 def list_assets(request: Request):
-    engine = request.app.state.engine
-    return [
-        AssetResponse(
-            asset_id=asset.asset_id,
-            issuer_user_id=asset.issuer_user_id,
-            total_supply=asset.total_supply,
-            name=asset.name,
-            last_price_cents=engine.last_price_cents.get(asset.asset_id),
-        )
-        for asset in engine.assets.values()
-    ]
+    with get_connection() as conn:
+        if _is_sqlite(conn):
+            engine = request.app.state.engine
+            return [
+                AssetResponse(
+                    asset_id=asset.asset_id,
+                    issuer_user_id=asset.issuer_user_id,
+                    issuer_username=None,
+                    total_supply=asset.total_supply,
+                    name=asset.name,
+                    last_price_cents=engine.last_price_cents.get(asset.asset_id),
+                )
+                for asset in engine.assets.values()
+            ]
+
+        cur = conn.cursor(row_factory=dict_row)
+        try:
+            cur.execute(
+                """
+                select
+                  a.asset_id,
+                  a.issuer_auth_user_id::text as issuer_user_id,
+                  p.username as issuer_username,
+                  a.total_supply,
+                  a.name,
+                  (
+                    select t.price_cents
+                    from public.trades t
+                    where t.asset_id = a.asset_id
+                    order by t.ts_seq desc, t.id desc
+                    limit 1
+                  ) as last_price_cents
+                from public.assets a
+                join public.profiles p on p.id = a.issuer_auth_user_id
+                order by a.created_at asc, a.asset_id asc
+                """
+            )
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+
+    return [AssetResponse(**_parse_row(row)) for row in rows]
 
 
 @router.get("/assets/{asset_id}", response_model=AssetResponse)
 def get_asset(asset_id: str, request: Request):
-    engine = request.app.state.engine
-    asset = engine.assets.get(asset_id)
-    if asset is None:
+    with get_connection() as conn:
+        if _is_sqlite(conn):
+            engine = request.app.state.engine
+            asset = engine.assets.get(asset_id)
+            if asset is None:
+                raise HTTPException(status_code=404, detail="asset not found")
+            return AssetResponse(
+                asset_id=asset.asset_id,
+                issuer_user_id=asset.issuer_user_id,
+                issuer_username=None,
+                total_supply=asset.total_supply,
+                name=asset.name,
+                last_price_cents=engine.last_price_cents.get(asset.asset_id),
+            )
+
+        cur = conn.cursor(row_factory=dict_row)
+        try:
+            cur.execute(
+                """
+                select
+                  a.asset_id,
+                  a.issuer_auth_user_id::text as issuer_user_id,
+                  p.username as issuer_username,
+                  a.total_supply,
+                  a.name,
+                  (
+                    select t.price_cents
+                    from public.trades t
+                    where t.asset_id = a.asset_id
+                    order by t.ts_seq desc, t.id desc
+                    limit 1
+                  ) as last_price_cents
+                from public.assets a
+                join public.profiles p on p.id = a.issuer_auth_user_id
+                where a.asset_id = %s
+                limit 1
+                """,
+                (asset_id,),
+            )
+            row = cur.fetchone()
+        finally:
+            cur.close()
+
+    if row is None:
         raise HTTPException(status_code=404, detail="asset not found")
-    return AssetResponse(
-        asset_id=asset.asset_id,
-        issuer_user_id=asset.issuer_user_id,
-        total_supply=asset.total_supply,
-        name=asset.name,
-        last_price_cents=engine.last_price_cents.get(asset.asset_id),
-    )
+    return AssetResponse(**_parse_row(row))
 
 
 @router.get("/assets/{asset_id}/trades", response_model=list[TradeResponse])
@@ -69,11 +135,32 @@ def get_asset_trades(asset_id: str, limit: int = Query(100, ge=1, le=1000)):
     with get_connection() as conn:
         cur = conn.cursor(row_factory=dict_row)
         try:
-            query = (
-                "SELECT id, ts_seq, asset_id, price_cents, qty, buy_order_id, sell_order_id, buyer_id, seller_id "
-                "FROM trades WHERE asset_id = " + _param(conn, 1) + " ORDER BY ts_seq ASC LIMIT " + _param(conn, 2)
-            )
-            cur.execute(query, (asset_id, limit))  # type: ignore[arg-type]
+            if _is_sqlite(conn):
+                query = (
+                    "SELECT id, ts_seq, asset_id, price_cents, qty, buy_order_id, sell_order_id, buyer_id, seller_id "
+                    "FROM trades WHERE asset_id = " + _param(conn, 1) + " ORDER BY ts_seq ASC LIMIT " + _param(conn, 2)
+                )
+                cur.execute(query, (asset_id, limit))  # type: ignore[arg-type]
+            else:
+                cur.execute(
+                    """
+                    SELECT
+                      id,
+                      ts_seq,
+                      asset_id,
+                      price_cents,
+                      qty,
+                      buy_order_id,
+                      sell_order_id,
+                      buyer_auth_user_id::text AS buyer_id,
+                      seller_auth_user_id::text AS seller_id
+                    FROM public.trades
+                    WHERE asset_id = %s
+                    ORDER BY ts_seq ASC, id ASC
+                    LIMIT %s
+                    """,
+                    (asset_id, limit),
+                )
             rows = cur.fetchall()
         finally:
             cur.close()
@@ -146,30 +233,89 @@ def get_asset_candles(
 
 @router.get("/users/{user_id}/portfolio", response_model=UserPortfolioResponse)
 def get_user_portfolio(user_id: str, request: Request):
-    engine = request.app.state.engine
-    if user_id not in engine.accounts:
-        raise HTTPException(status_code=404, detail="user not found")
+    with get_connection() as conn:
+        if _is_sqlite(conn):
+            engine = request.app.state.engine
+            if user_id not in engine.accounts:
+                raise HTTPException(status_code=404, detail="user not found")
 
-    holdings = []
-    for (holder_id, asset_id), holding in engine.holdings.items():
-        if holder_id != user_id:
-            continue
-        last_price = engine.last_price_cents.get(asset_id)
-        market_value = (last_price or 0) * holding.shares
-        holdings.append(
-            HoldingResponse(
-                asset_id=asset_id,
-                shares=holding.shares,
-                reserved_shares=holding.reserved_shares,
-                last_price_cents=last_price,
-                market_value_cents=market_value,
+            holdings = []
+            for (holder_id, asset_id), holding in engine.holdings.items():
+                if holder_id != user_id:
+                    continue
+                last_price = engine.last_price_cents.get(asset_id)
+                market_value = (last_price or 0) * holding.shares
+                holdings.append(
+                    HoldingResponse(
+                        asset_id=asset_id,
+                        shares=holding.shares,
+                        reserved_shares=holding.reserved_shares,
+                        last_price_cents=last_price,
+                        market_value_cents=market_value,
+                    )
+                )
+
+            account = engine.accounts[user_id]
+            return UserPortfolioResponse(
+                user_id=user_id,
+                cash_cents=account.cash_cents,
+                reserved_cash_cents=account.reserved_cash_cents,
+                holdings=holdings,
             )
-        )
 
-    account = engine.accounts[user_id]
+        cur = conn.cursor(row_factory=dict_row)
+        try:
+            cur.execute(
+                """
+                select auth_user_id::text as user_id, cash_cents, reserved_cash_cents
+                from public.user_accounts
+                where auth_user_id = %s
+                limit 1
+                """,
+                (user_id,),
+            )
+            account_row = cur.fetchone()
+            if account_row is None:
+                raise HTTPException(status_code=404, detail="user not found")
+
+            cur.execute(
+                """
+                select
+                  h.asset_id,
+                  h.shares,
+                  h.reserved_shares,
+                  latest_trade.price_cents as last_price_cents
+                from public.holdings h
+                left join lateral (
+                  select t.price_cents
+                  from public.trades t
+                  where t.asset_id = h.asset_id
+                  order by t.ts_seq desc, t.id desc
+                  limit 1
+                ) latest_trade on true
+                where h.auth_user_id = %s
+                order by h.created_at asc, h.asset_id asc
+                """,
+                (user_id,),
+            )
+            holding_rows = cur.fetchall()
+        finally:
+            cur.close()
+
+    holdings = [
+        HoldingResponse(
+            asset_id=row["asset_id"],
+            shares=row["shares"],
+            reserved_shares=row["reserved_shares"],
+            last_price_cents=row["last_price_cents"],
+            market_value_cents=(row["last_price_cents"] or 0) * row["shares"],
+        )
+        for row in holding_rows
+    ]
+
     return UserPortfolioResponse(
-        user_id=user_id,
-        cash_cents=account.cash_cents,
-        reserved_cash_cents=account.reserved_cash_cents,
+        user_id=account_row["user_id"],
+        cash_cents=account_row["cash_cents"],
+        reserved_cash_cents=account_row["reserved_cash_cents"],
         holdings=holdings,
     )

@@ -5,6 +5,7 @@ import {
   getAssets,
   getUserAccountBalances,
   getUserPortfolio,
+  placeOrder,
 } from "./api";
 import HeikinAshiChart from "./components/HeikinAshiChart";
 import { supabase } from "./utils/supabase";
@@ -14,6 +15,14 @@ function formatCurrency(cents) {
     style: "currency",
     currency: "USD",
   }).format((cents || 0) / 100);
+}
+
+function formatPriceInput(cents) {
+  if (typeof cents !== "number" || !Number.isFinite(cents) || cents <= 0) {
+    return "";
+  }
+
+  return (cents / 100).toFixed(2);
 }
 
 function normalizeEmail(value) {
@@ -64,10 +73,40 @@ function getAuthErrorMessage(error) {
   return fallbackMessage;
 }
 
+function getAssetIssuerName(asset, options = {}) {
+  if (!asset) {
+    return null;
+  }
+
+  if (asset.issuer_username) {
+    return asset.issuer_username;
+  }
+
+  if (
+    options.sessionUserId &&
+    options.sessionUsername &&
+    asset.issuer_user_id === options.sessionUserId
+  ) {
+    return options.sessionUsername;
+  }
+
+  return asset.issuer_user_id || asset.asset_id || null;
+}
+
+function formatAssetDisplayName(asset, options = {}) {
+  const issuerName = getAssetIssuerName(asset, options);
+  if (!issuerName) {
+    return asset?.asset_id || "Unknown Stock";
+  }
+
+  return `${issuerName}'s Stock`;
+}
+
 export default function App() {
-  const [authMode, setAuthMode] = useState("login");
+  const [authMode, setAuthMode] = useState("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [sessionUserId, setSessionUserId] = useState(null);
   const [sessionUsername, setSessionUsername] = useState(null);
@@ -79,10 +118,16 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [authNotice, setAuthNotice] = useState(null);
   const [pageError, setPageError] = useState(null);
+  const [tradingNotice, setTradingNotice] = useState(null);
+  const [tradingError, setTradingError] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [isLoadingCandles, setIsLoadingCandles] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [orderSide, setOrderSide] = useState("BUY");
+  const [orderQuantity, setOrderQuantity] = useState("1");
+  const [orderLimitPrice, setOrderLimitPrice] = useState("");
 
   const holdingAssets = useMemo(() => {
     if (!portfolio) {
@@ -90,6 +135,21 @@ export default function App() {
     }
     return portfolio.holdings || [];
   }, [portfolio]);
+
+  const assetsById = useMemo(
+    () => new Map(assets.map((asset) => [asset.asset_id, asset])),
+    [assets],
+  );
+
+  const activeAsset = useMemo(
+    () => (activeAssetId ? assetsById.get(activeAssetId) || null : null),
+    [activeAssetId, assetsById],
+  );
+
+  const activeHolding = useMemo(
+    () => holdingAssets.find((holding) => holding.asset_id === activeAssetId) || null,
+    [activeAssetId, holdingAssets],
+  );
 
   const holdingAssetIds = useMemo(
     () => new Set(holdingAssets.map((holding) => holding.asset_id)),
@@ -101,6 +161,39 @@ export default function App() {
     [assets, holdingAssetIds],
   );
 
+  const orderQuantityValue = useMemo(() => {
+    const parsedQuantity = Number.parseInt(orderQuantity, 10);
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+      return null;
+    }
+    return parsedQuantity;
+  }, [orderQuantity]);
+
+  const orderLimitPriceCents = useMemo(() => {
+    const parsedPrice = Number(orderLimitPrice);
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      return null;
+    }
+    return Math.round(parsedPrice * 100);
+  }, [orderLimitPrice]);
+
+  const availableCashCents = portfolio?.cash_cents ?? 0;
+  const availableShares = Math.max(
+    (activeHolding?.shares || 0) - (activeHolding?.reserved_shares || 0),
+    0,
+  );
+  const isActiveAssetIssuedByUser = activeAsset?.issuer_user_id === sessionUserId;
+  const estimatedOrderValueCents =
+    orderQuantityValue && orderLimitPriceCents
+      ? orderQuantityValue * orderLimitPriceCents
+      : null;
+  const hasInsufficientCash =
+    orderSide === "BUY" &&
+    estimatedOrderValueCents !== null &&
+    estimatedOrderValueCents > availableCashCents;
+  const hasInsufficientShares =
+    orderSide === "SELL" && orderQuantityValue !== null && orderQuantityValue > availableShares;
+
   function resetDashboardState() {
     setSessionUserId(null);
     setSessionUsername(null);
@@ -110,6 +203,20 @@ export default function App() {
     setCandles(null);
     setActiveAssetId(null);
     setPageError(null);
+    setTradingNotice(null);
+    setTradingError(null);
+    setOrderSide("BUY");
+    setOrderQuantity("1");
+    setOrderLimitPrice("");
+  }
+
+  function getAssetDisplayName(assetId) {
+    const asset = assetsById.get(assetId);
+    if (!asset) {
+      return assetId;
+    }
+
+    return formatAssetDisplayName(asset, { sessionUserId, sessionUsername });
   }
 
   async function loadDashboard(nextUserId, options = {}) {
@@ -119,6 +226,12 @@ export default function App() {
         getAssets(),
         getUserAccountBalances(nextUserId).catch(() => null),
       ]);
+
+      const preferredAssetId = options.preferredAssetId ?? activeAssetId;
+      const preferredAssetExists =
+        typeof preferredAssetId === "string" &&
+        (assetsResult.some((asset) => asset.asset_id === preferredAssetId) ||
+          (portfolioResult.holdings || []).some((holding) => holding.asset_id === preferredAssetId));
 
       setPortfolio({
         ...portfolioResult,
@@ -131,6 +244,7 @@ export default function App() {
       const userIssuedAssetId =
         assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
       const defaultAssetId =
+        (preferredAssetExists ? preferredAssetId : null) ||
         userIssuedAssetId ||
         portfolioResult.holdings?.[0]?.asset_id ||
         assetsResult[0]?.asset_id ||
@@ -287,6 +401,99 @@ export default function App() {
     }
   }
 
+  async function refreshDashboard(options = {}) {
+    if (!sessionUserId) {
+      return;
+    }
+
+    await loadDashboard(sessionUserId, {
+      createIfMissing: false,
+      preferredAssetId: options.preferredAssetId ?? activeAssetId,
+    });
+  }
+
+  async function handleTradeSubmit(event) {
+    event.preventDefault();
+
+    if (!sessionUserId || !activeAssetId || !activeAsset) {
+      setTradingError("Select a stock before placing an order.");
+      return;
+    }
+
+    if (!orderQuantityValue) {
+      setTradingError("Enter a whole number of shares to trade.");
+      return;
+    }
+
+    if (!orderLimitPriceCents) {
+      setTradingError("Enter a valid limit price in dollars.");
+      return;
+    }
+
+    if (orderSide === "BUY" && isActiveAssetIssuedByUser) {
+      setTradingError("You can't buy your own stock.");
+      return;
+    }
+
+    if (orderSide === "SELL" && orderQuantityValue > availableShares) {
+      setTradingError(`You only have ${availableShares} share${availableShares === 1 ? "" : "s"} available to sell.`);
+      return;
+    }
+
+    if (orderSide === "BUY" && estimatedOrderValueCents !== null && estimatedOrderValueCents > availableCashCents) {
+      setTradingError("This order costs more cash than is currently available in the account.");
+      return;
+    }
+
+    try {
+      setIsSubmittingOrder(true);
+      setTradingError(null);
+      setTradingNotice(null);
+
+      const response = await placeOrder({
+        user_id: sessionUserId,
+        asset_id: activeAssetId,
+        side: orderSide,
+        qty: orderQuantityValue,
+        limit_price_cents: orderLimitPriceCents,
+      });
+
+      const tradeCount = response.trades?.length || 0;
+      const tradeSummary =
+        tradeCount > 0
+          ? `${tradeCount} trade${tradeCount === 1 ? "" : "s"} executed immediately.`
+          : "The order is now resting on the book.";
+
+      setTradingNotice(
+        `${orderSide === "BUY" ? "Buy" : "Sell"} order placed for ${orderQuantityValue} share${orderQuantityValue === 1 ? "" : "s"} of ${getAssetDisplayName(activeAssetId)} at ${formatCurrency(orderLimitPriceCents)} per share. ${tradeSummary}`,
+      );
+
+      await refreshDashboard({ preferredAssetId: activeAssetId });
+    } catch (err) {
+      setTradingError(err.message || "Unable to place this order.");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!activeAsset) {
+      setOrderSide("BUY");
+      setOrderQuantity("1");
+      setOrderLimitPrice("");
+      setTradingNotice(null);
+      setTradingError(null);
+      return;
+    }
+
+    const nextSide = isActiveAssetIssuedByUser && availableShares > 0 ? "SELL" : "BUY";
+    setOrderSide(nextSide);
+    setOrderQuantity("1");
+    setOrderLimitPrice(formatPriceInput(activeAsset.last_price_cents));
+    setTradingNotice(null);
+    setTradingError(null);
+  }, [activeAssetId]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -365,7 +572,9 @@ export default function App() {
         setCandles(result.bars);
       } catch (err) {
         setCandles(null);
-        setPageError(err.message || "Unable to load candles.");
+        if (err.status !== 404) {
+          setPageError(err.message || "Unable to load candles.");
+        }
       } finally {
         setIsLoadingCandles(false);
       }
@@ -373,6 +582,19 @@ export default function App() {
 
     loadCandles();
   }, [activeAssetId, sessionUserId]);
+
+  const activeAssetDisplayName = activeAsset
+    ? formatAssetDisplayName(activeAsset, { sessionUserId, sessionUsername })
+    : null;
+  const activeAssetIssuerName = getAssetIssuerName(activeAsset, { sessionUserId, sessionUsername });
+  const isTradeSubmitDisabled =
+    isSubmittingOrder ||
+    !activeAsset ||
+    !orderQuantityValue ||
+    !orderLimitPriceCents ||
+    (orderSide === "BUY" && isActiveAssetIssuedByUser) ||
+    hasInsufficientCash ||
+    hasInsufficientShares;
 
   if (!isAuthReady) {
     return (
@@ -388,92 +610,132 @@ export default function App() {
   if (!sessionUserId) {
     return (
       <div className="login-shell">
-        <section className="login-card">
-          <p className="eyebrow">SSM Trading</p>
-          <h1>{authMode === "login" ? "Sign in with email" : "Create your account"}</h1>
+        <div className="login-wordmark" aria-label="Section Stock Market">
+          section stock market
+        </div>
 
-          <div className="auth-toggle" aria-label="Authentication mode">
-            <button
-              type="button"
-              className={authMode === "login" ? "active" : ""}
-              onClick={() => {
-                setAuthMode("login");
-                setAuthError(null);
-                setAuthNotice(null);
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={authMode === "register" ? "active" : ""}
-              onClick={() => {
-                setAuthMode("register");
-                setAuthError(null);
-                setAuthNotice(null);
-              }}
-            >
-              Register
-            </button>
+        <section className="auth-layout">
+          <div className="login-visual" aria-hidden="true">
+            <div className="login-visual-overlay" />
           </div>
 
-          <form className="login-form" onSubmit={handleAuthSubmit}>
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
+          <section className="login-card auth-card">
+            <div className="auth-panel">
+              <div className="auth-panel-header">
+                {authMode === "login" ? <p className="eyebrow">Welcome back</p> : null}
+                <h2>{authMode === "login" ? "Sign in to your account" : "Create your account"}</h2>
+                <p className="helper-copy">Use your email and password below.</p>
+              </div>
 
-            {authMode === "register" ? (
-              <>
-                <label htmlFor="username">Username</label>
+              <div className="auth-toggle" aria-label="Authentication mode">
+                <button
+                  type="button"
+                  className={authMode === "register" ? "active" : ""}
+                  onClick={() => {
+                    setAuthMode("register");
+                    setAuthError(null);
+                    setAuthNotice(null);
+                  }}
+                >
+                  Register
+                </button>
+                <button
+                  type="button"
+                  className={authMode === "login" ? "active" : ""}
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthError(null);
+                    setAuthNotice(null);
+                  }}
+                >
+                  Sign In
+                </button>
+              </div>
+
+              <form className="login-form" onSubmit={handleAuthSubmit}>
+                <label htmlFor="email">Email</label>
                 <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="trader-alice"
-                  autoComplete="username"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="dpeppa67@nd.edu"
+                  autoComplete="email"
                 />
-              </>
-            ) : null}
 
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter your password"
-              autoComplete={authMode === "login" ? "current-password" : "new-password"}
-            />
+                {authMode === "register" ? (
+                  <>
+                    <label htmlFor="username">Username</label>
+                    <input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      placeholder="trader-midass"
+                      autoComplete="username"
+                    />
+                  </>
+                ) : null}
 
-            <button type="submit" disabled={isAuthenticating}>
-              {isAuthenticating
-                ? "Working..."
-                : authMode === "login"
-                  ? "Enter Dashboard"
-                  : "Create Account"}
-            </button>
-          </form>
+                <label htmlFor="password">Password</label>
+                <div className="password-field">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Enter your password"
+                    autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword((currentValue) => !currentValue)}
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    <svg
+                      className="password-toggle-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z" />
+                      <circle cx="12" cy="12" r="3.2" />
+                      {showPassword ? <path d="M4 4l16 16" /> : null}
+                    </svg>
+                  </button>
+                </div>
 
-          {authNotice ? <div className="helper-banner">{authNotice}</div> : null}
-          {authError ? <div className="error-banner">{authError}</div> : null}
+                <button className="auth-submit-button" type="submit" disabled={isAuthenticating}>
+                  {isAuthenticating
+                    ? "Working..."
+                    : authMode === "login"
+                      ? "Enter Dashboard"
+                      : "Create Account"}
+                </button>
+              </form>
 
-          {authMode === "login" ? (
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={handleResendVerification}
-              disabled={isResendingVerification || isAuthenticating}
-            >
-              {isResendingVerification ? "Sending verification..." : "Resend verification email"}
-            </button>
-          ) : null}
+              {authNotice ? <div className="helper-banner">{authNotice}</div> : null}
+              {authError ? <div className="error-banner">{authError}</div> : null}
+
+              {authMode === "login" ? (
+                <button
+                  type="button"
+                  className="ghost-button auth-secondary-action"
+                  onClick={handleResendVerification}
+                  disabled={isResendingVerification || isAuthenticating}
+                >
+                  {isResendingVerification ? "Sending verification..." : "Resend verification email"}
+                </button>
+              ) : null}
+            </div>
+          </section>
         </section>
       </div>
     );
@@ -522,7 +784,7 @@ export default function App() {
                     className={holding.asset_id === activeAssetId ? "position-card selected" : "position-card"}
                     onClick={() => setActiveAssetId(holding.asset_id)}
                   >
-                    <h3>{holding.asset_id}</h3>
+                    <h3>{getAssetDisplayName(holding.asset_id)}</h3>
                     <p>{holding.shares} shares</p>
                     <p>Reserved: {holding.reserved_shares}</p>
                     <p>Market value: {formatCurrency(holding.market_value_cents)}</p>
@@ -538,7 +800,7 @@ export default function App() {
         <section className="panel panel-wide">
           <div className="panel-header">
             <div>
-              <h2>{activeAssetId ? `${activeAssetId} Heikin Ashi Chart` : "Asset Chart"}</h2>
+              <h2>{activeAssetDisplayName ? `${activeAssetDisplayName} Heikin Ashi Chart` : "Asset Chart"}</h2>
               <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
             </div>
           </div>
@@ -550,6 +812,128 @@ export default function App() {
               {isLoadingCandles ? "Loading chart..." : "No chart data is available for this asset yet."}
             </div>
           )}
+        </section>
+
+        <section className="panel trade-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Trade Selected Stock</h2>
+              <p className="panel-copy">Place a limit buy or sell order on the asset you currently have selected.</p>
+            </div>
+          </div>
+
+          <div className="trade-panel-body">
+            {activeAsset ? (
+              <>
+                <div className="trade-asset-summary">
+                  <div>
+                    <p className="eyebrow">Selected Stock</p>
+                    <h3>{activeAssetDisplayName}</h3>
+                    <p className="helper-copy">Issuer: {activeAssetIssuerName}</p>
+                  </div>
+
+                  <div className="trade-stat-grid">
+                    <div className="trade-stat-card">
+                      <span>Last price</span>
+                      <strong>{formatCurrency(activeAsset.last_price_cents || 0)}</strong>
+                    </div>
+                    <div className="trade-stat-card">
+                      <span>Cash ready</span>
+                      <strong>{formatCurrency(availableCashCents)}</strong>
+                    </div>
+                    <div className="trade-stat-card">
+                      <span>Sellable shares</span>
+                      <strong>{availableShares}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="trade-toggle" aria-label="Order side">
+                  <button
+                    type="button"
+                    className={orderSide === "BUY" ? "active" : ""}
+                    onClick={() => setOrderSide("BUY")}
+                    disabled={isActiveAssetIssuedByUser}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    type="button"
+                    className={orderSide === "SELL" ? "active" : ""}
+                    onClick={() => setOrderSide("SELL")}
+                    disabled={availableShares === 0}
+                  >
+                    Sell
+                  </button>
+                </div>
+
+                <form className="trade-form" onSubmit={handleTradeSubmit}>
+                  <label htmlFor="trade-quantity">Quantity</label>
+                  <input
+                    id="trade-quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={orderQuantity}
+                    onChange={(event) => setOrderQuantity(event.target.value)}
+                    placeholder="10"
+                  />
+
+                  <label htmlFor="trade-limit-price">Limit Price Per Share</label>
+                  <input
+                    id="trade-limit-price"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={orderLimitPrice}
+                    onChange={(event) => setOrderLimitPrice(event.target.value)}
+                    placeholder="12.50"
+                  />
+
+                  {estimatedOrderValueCents !== null ? (
+                    <p className="helper-copy">
+                      Estimated order value: {formatCurrency(estimatedOrderValueCents)}
+                    </p>
+                  ) : null}
+
+                  {orderSide === "BUY" && isActiveAssetIssuedByUser ? (
+                    <div className="helper-banner">
+                      Buying your own stock is blocked, but you can place sell orders for shares you hold.
+                    </div>
+                  ) : null}
+
+                  {orderSide === "BUY" && hasInsufficientCash ? (
+                    <div className="helper-banner">
+                      This buy order is larger than the cash currently available in the account.
+                    </div>
+                  ) : null}
+
+                  {orderSide === "SELL" && availableShares === 0 ? (
+                    <div className="helper-banner">
+                      There are no unreserved shares of this stock available to sell right now.
+                    </div>
+                  ) : null}
+
+                  {orderSide === "SELL" && hasInsufficientShares ? (
+                    <div className="helper-banner">
+                      The order quantity is higher than the number of shares available to sell.
+                    </div>
+                  ) : null}
+
+                  {tradingNotice ? <div className="helper-banner">{tradingNotice}</div> : null}
+                  {tradingError ? <div className="error-banner trade-message">{tradingError}</div> : null}
+
+                  <button className="auth-submit-button" type="submit" disabled={isTradeSubmitDisabled}>
+                    {isSubmittingOrder
+                      ? "Submitting Order..."
+                      : `Place ${orderSide === "BUY" ? "Buy" : "Sell"} Order`}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <div className="empty-state">Select a market stock to place a trade.</div>
+            )}
+          </div>
         </section>
 
         <section className="panel market-panel">
@@ -572,11 +956,12 @@ export default function App() {
                     onClick={() => setActiveAssetId(asset.asset_id)}
                   >
                     <div className="card-label-row">
-                      <h3>{asset.asset_id}</h3>
+                      <h3>{formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}</h3>
                       {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
                       {owned ? <span className="card-badge">Owned</span> : null}
                     </div>
-                    <p>Issuer: {asset.issuer_user_id}</p>
+                    <p>Issuer: {getAssetIssuerName(asset, { sessionUserId, sessionUsername })}</p>
+                    <p>Ticker: {asset.asset_id}</p>
                     <p>Total supply: {asset.total_supply}</p>
                     <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
                   </article>

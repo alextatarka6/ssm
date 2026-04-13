@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from ..db import get_connection
-from ..persist import persist_engine_results
+from ..persist import persist_engine_results, sync_engine_from_database
 from ..schemas import OrderCreate, OrderResponse, OrderSubmissionResponse, TradeResponse
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -39,11 +39,14 @@ def _serialize_trade(trade: Any) -> dict:
 @router.post("/", response_model=OrderSubmissionResponse, status_code=201)
 def place_order(payload: OrderCreate, request: Request) -> dict:
     engine = request.app.state.engine
+    with get_connection() as conn:
+        sync_engine_from_database(engine, conn)
+
     order, trades = engine.process_order(payload)
 
     with get_connection() as conn:
         with conn.transaction():
-            persist_engine_results(conn, events=engine.events, order=order, trades=trades)
+            persist_engine_results(conn, events=engine.events, order=order, trades=trades, engine=engine)
 
     engine.events = []
     return {
@@ -55,11 +58,14 @@ def place_order(payload: OrderCreate, request: Request) -> dict:
 @router.post("/{order_id}/cancel", response_model=OrderResponse)
 def cancel_order(order_id: int, request: Request) -> dict:
     engine = request.app.state.engine
+    with get_connection() as conn:
+        sync_engine_from_database(engine, conn)
+
     order = engine.cancel_order(order_id)
 
     with get_connection() as conn:
         with conn.transaction():
-            persist_engine_results(conn, events=engine.events, order=order, trades=[])
+            persist_engine_results(conn, events=engine.events, order=order, trades=[], engine=engine)
 
     engine.events = []
     return _serialize_order(order)

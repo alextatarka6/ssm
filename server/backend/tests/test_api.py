@@ -24,6 +24,8 @@ class DummyTransaction:
 
 
 class DummyConnection:
+    is_sqlite = True
+
     def __enter__(self):
         return self
 
@@ -48,9 +50,11 @@ def patch_persistence(monkeypatch):
     monkeypatch.setattr(assets_mod, "get_connection", lambda: DummyConnection())
     monkeypatch.setattr(orders_mod, "get_connection", lambda: DummyConnection())
     monkeypatch.setattr(users_mod, "get_connection", lambda: DummyConnection())
-    monkeypatch.setattr(users_mod, "persist_engine_results", lambda conn, events, order, trades: None)
-    monkeypatch.setattr(assets_mod, "persist_engine_results", lambda conn, events, order, trades: None)
-    monkeypatch.setattr(orders_mod, "persist_engine_results", lambda conn, events, order, trades: None)
+    monkeypatch.setattr(assets_mod, "sync_engine_from_database", lambda engine, conn: None)
+    monkeypatch.setattr(orders_mod, "sync_engine_from_database", lambda engine, conn: None)
+    monkeypatch.setattr(users_mod, "persist_engine_results", lambda conn, events, order, trades, engine=None: None)
+    monkeypatch.setattr(assets_mod, "persist_engine_results", lambda conn, events, order, trades, engine=None: None)
+    monkeypatch.setattr(orders_mod, "persist_engine_results", lambda conn, events, order, trades, engine=None: None)
 
 
 def build_request(engine: MatchingEngine):

@@ -61,6 +61,7 @@ class OrderSubmissionResponse(BaseModel):
 class AssetResponse(BaseModel):
     asset_id: str
     issuer_user_id: str
+    issuer_username: Optional[str] = None
     total_supply: int
     name: Optional[str]
     last_price_cents: Optional[int]
