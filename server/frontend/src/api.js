@@ -81,3 +81,10 @@ export function createUser(userId, initialCashCents = 500000) {
     }),
   });
 }
+
+export function updateAsset(assetId, payload) {
+  return fetchJson(`/assets/${encodeURIComponent(assetId)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

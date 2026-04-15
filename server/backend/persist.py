@@ -98,6 +98,25 @@ def _resolve_trade_ts_seq(trade: Any, trade_seq_by_id: Dict[int, int]) -> int:
     return trade_seq_by_id[trade_id]
 
 
+def _collect_orders_to_persist(engine: Optional[Any], order: Optional[Any], trades: List[Any]) -> List[Any]:
+    orders_by_id: Dict[int, Any] = {}
+
+    if order is not None:
+        orders_by_id[_get_value(order, "id")] = order
+
+    if engine is None:
+        return list(orders_by_id.values())
+
+    for trade in trades:
+        for key in ("buy_order_id", "sell_order_id"):
+            order_id = _get_value(trade, key)
+            matched_order = engine.orders.get(order_id)
+            if matched_order is not None:
+                orders_by_id[order_id] = matched_order
+
+    return list(orders_by_id.values())
+
+
 def load_all_events(conn: Any) -> List[Dict[str, Any]]:
     cur = conn.cursor(row_factory=dict_row)
     try:
@@ -374,7 +393,9 @@ def persist_engine_results(
     engine: Optional[Any] = None,
 ) -> None:
     persisted_events = list(events or [])
+    persisted_trades = list(trades or [])
     trade_seq_by_id = _trade_sequence_by_id(persisted_events)
+    orders_to_persist = _collect_orders_to_persist(engine, order, persisted_trades)
 
     cur = conn.cursor()
     try:
@@ -396,7 +417,7 @@ def persist_engine_results(
                 data_value,
             ))
 
-        if order is not None:
+        for persisted_order in orders_to_persist:
             if _is_sqlite(conn):
                 query = (
                     "INSERT INTO orders (id, user_id, asset_id, side, qty, remaining_qty, limit_price_cents, status, seq) VALUES (" +
@@ -404,15 +425,15 @@ def persist_engine_results(
                     ") ON CONFLICT (id) DO UPDATE SET remaining_qty = EXCLUDED.remaining_qty, status = EXCLUDED.status, seq = EXCLUDED.seq"
                 )
                 cur.execute(query, (
-                    _get_value(order, "id"),
-                    _get_value(order, "user_id"),
-                    _get_value(order, "asset_id"),
-                    _get_value(order, "side"),
-                    _get_value(order, "qty"),
-                    _get_value(order, "remaining_qty"),
-                    _get_value(order, "limit_price_cents"),
-                    _get_value(order, "status"),
-                    _get_value(order, "seq"),
+                    _get_value(persisted_order, "id"),
+                    _get_value(persisted_order, "user_id"),
+                    _get_value(persisted_order, "asset_id"),
+                    _get_value(persisted_order, "side"),
+                    _get_value(persisted_order, "qty"),
+                    _get_value(persisted_order, "remaining_qty"),
+                    _get_value(persisted_order, "limit_price_cents"),
+                    _get_value(persisted_order, "status"),
+                    _get_value(persisted_order, "seq"),
                 ))
             else:
                 cur.execute(
@@ -435,19 +456,19 @@ def persist_engine_results(
                         updated_at = timezone('utc', now())
                     """,
                     (
-                        _get_value(order, "id"),
-                        _get_value(order, "user_id"),
-                        _get_value(order, "asset_id"),
-                        _get_value(order, "side"),
-                        _get_value(order, "qty"),
-                        _get_value(order, "remaining_qty"),
-                        _get_value(order, "limit_price_cents"),
-                        _get_value(order, "status"),
-                        _get_value(order, "seq"),
+                        _get_value(persisted_order, "id"),
+                        _get_value(persisted_order, "user_id"),
+                        _get_value(persisted_order, "asset_id"),
+                        _get_value(persisted_order, "side"),
+                        _get_value(persisted_order, "qty"),
+                        _get_value(persisted_order, "remaining_qty"),
+                        _get_value(persisted_order, "limit_price_cents"),
+                        _get_value(persisted_order, "status"),
+                        _get_value(persisted_order, "seq"),
                     ),
                 )
 
-        for trade in trades or []:
+        for trade in persisted_trades:
             trade_ts_seq = _resolve_trade_ts_seq(trade, trade_seq_by_id)
             if _is_sqlite(conn):
                 query = (
@@ -498,4 +519,4 @@ def persist_engine_results(
         cur.close()
 
     if not _is_sqlite(conn) and engine is not None:
-        _sync_public_state(conn, engine, persisted_events, order, list(trades or []))
+        _sync_public_state(conn, engine, persisted_events, order, persisted_trades)

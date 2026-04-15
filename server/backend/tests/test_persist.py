@@ -98,3 +98,35 @@ def test_sync_engine_from_database_restores_global_generators():
 
     assert next_order.id == second_order.id + 1
     assert next_order.seq == max_seq_before_restart + 1
+
+
+def test_persist_engine_results_updates_resting_order_remaining_qty_after_partial_fill():
+    set_generator_state()
+    conn = _make_sqlite_conn()
+    engine = MatchingEngine()
+
+    engine.set_user_default("alice", 100_000)
+    engine.set_user_default("bob", 0)
+    engine.create_person_asset("bob", "bob-stock")
+    _persist(conn, engine)
+
+    resting_order, _ = engine.process_order(NewOrder("bob", "bob-stock", Side.SELL, 5, 1200))
+    _persist(conn, engine, order=resting_order)
+
+    incoming_order, trades = engine.process_order(NewOrder("alice", "bob-stock", Side.BUY, 2, 1500))
+    _persist(conn, engine, order=incoming_order, trades=trades)
+
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT remaining_qty, status FROM orders WHERE id = ?", (resting_order.id,))
+        updated_resting_order = cur.fetchone()
+    finally:
+        cur.close()
+
+    restarted_engine = MatchingEngine()
+    sync_engine_from_database(restarted_engine, conn)
+    conn.close()
+
+    assert updated_resting_order["remaining_qty"] == 3
+    assert updated_resting_order["status"] == "PARTIALLY_FILLED"
+    assert restarted_engine.orders[resting_order.id].remaining_qty == 3

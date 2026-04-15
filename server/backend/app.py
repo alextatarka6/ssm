@@ -19,7 +19,7 @@ from .routes.assets import router as assets_router
 from .routes.orders import router as orders_router
 from .routes.query import router as query_router
 
-app = FastAPI(title="SSM Trading API")
+app = FastAPI(title="Section Stock Market API")
 engine = MatchingEngine()
 
 app.add_middleware(

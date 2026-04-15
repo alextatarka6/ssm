@@ -22,6 +22,11 @@ class AssetCreate(BaseModel):
     name: Optional[str] = None
 
 
+class AssetUpdate(BaseModel):
+    issuer_user_id: Annotated[str, Field(min_length=1)]
+    name: Annotated[str, Field(min_length=1)]
+
+
 class OrderCreate(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
     asset_id: Annotated[str, Field(min_length=1)]

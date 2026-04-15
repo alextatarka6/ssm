@@ -1,11 +1,29 @@
+@font-face {
+  font-family: "Funkydori Bold";
+  src: url("/funkydori-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
 :root {
   color-scheme: dark;
-  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  --color-primary: #9bced1;
+  --color-primary-strong: #79a8ab;
+  --color-primary-surface: rgba(155, 206, 209, 0.34);
+  --color-primary-surface-strong: rgba(121, 168, 171, 0.54);
+  --color-primary-surface-soft: rgba(155, 206, 209, 0.24);
+  --color-primary-surface-faint: rgba(155, 206, 209, 0.18);
+  --color-primary-border: rgba(205, 232, 233, 0.46);
+  --color-primary-border-strong: rgba(205, 232, 233, 0.68);
+  --color-primary-outline: rgba(205, 232, 233, 0.78);
+  --color-primary-text: #f2fbfb;
+  --color-muted-text: #cad9da;
+  --color-body-text: #dde8e9;
   background:
-    radial-gradient(circle at top left, rgba(248, 211, 126, 0.14), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(221, 92, 64, 0.14), transparent 24%),
-    linear-gradient(180deg, #171314 0%, #0f0b0c 100%);
-  color: #f2e9df;
+    radial-gradient(circle at bottom right, rgba(121, 168, 171, 0.34), transparent 24%),
+    linear-gradient(180deg, #142022 0%, #0e1719 100%);
+  color: var(--color-primary-text);
 }
 
 * {
@@ -21,7 +39,7 @@ body,
 
 body {
   background: transparent;
-  color: #d8cfc5;
+  color: var(--color-body-text);
 }
 
 button,
@@ -63,7 +81,7 @@ button {
   height: 320px;
   top: 64px;
   left: max(24px, calc(50% - 680px));
-  background: radial-gradient(circle, rgba(213, 152, 95, 0.2), transparent 66%);
+  background: radial-gradient(circle, rgba(155, 206, 209, 0.28), transparent 66%);
 }
 
 .login-shell::after {
@@ -71,13 +89,15 @@ button {
   height: 360px;
   right: max(12px, calc(50% - 720px));
   bottom: 32px;
-  background: radial-gradient(circle, rgba(147, 84, 61, 0.18), transparent 70%);
+  background: radial-gradient(circle, rgba(121, 168, 171, 0.24), transparent 70%);
 }
 
 .login-card,
 .panel {
-  background: rgba(25, 19, 20, 0.84);
-  border: 1px solid rgba(255, 240, 223, 0.1);
+  background:
+    linear-gradient(180deg, rgba(155, 206, 209, 0.26), rgba(22, 33, 35, 0.92)),
+    rgba(17, 25, 27, 0.9);
+  border: 1px solid var(--color-primary-border);
   border-radius: 28px;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
@@ -88,12 +108,86 @@ button {
   padding: 0;
 }
 
+.session-status-card {
+  width: min(560px, 100%);
+  margin: auto;
+  padding: 36px 40px;
+  text-align: center;
+}
+
+.session-status-card .eyebrow {
+  margin-bottom: 14px;
+}
+
 .login-card h1,
-.topbar h1 {
+.ribbon-label-text {
   margin: 0;
   font-size: clamp(2rem, 3vw, 3rem);
   line-height: 1.05;
-  color: #fff7ed;
+  color: var(--color-primary-text);
+}
+
+.ribbon-label {
+  position: relative;
+  isolation: isolate;
+  padding: 22px 28px 28px 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.ribbon-label::before,
+.ribbon-label::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ribbon-label::before {
+  top: -8px;
+  left: -12px;
+  width: min(70vw, 595px);
+  height: 220px;
+  border-radius: 28px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(227, 160, 71, 0.96) 0 6px,
+      rgba(214, 133, 80, 0.96) 6px 12px
+    );
+  box-shadow:
+    0 16px 40px rgba(214, 133, 80, 0.22),
+    0 0 0 3px rgba(251, 251, 254, 0.85);
+  transform: skewX(-34deg);
+  transform-origin: left center;
+}
+
+.ribbon-label::after {
+  top: 8px;
+  left: 2px;
+  width: min(70vw, 595px);
+  height: 220px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(251, 251, 254, 0.14), rgba(251, 251, 254, 0.04));
+  transform: skewX(-34deg);
+  transform-origin: left center;
+}
+
+.ribbon-label-text {
+  max-width: 11ch;
+  font-family: "Funkydori Bold", "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  color: #e6a198;
+  font-size: clamp(2.9rem, 6vw, 5.5rem);
+  line-height: 0.88;
+  letter-spacing: 0.01em;
+  transform: translateX(28px);
+  text-shadow:
+    -2px -2px 0 #fbfbfe,
+    2px -2px 0 #fbfbfe,
+    -2px 2px 0 #fbfbfe,
+    2px 2px 0 #fbfbfe;
 }
 
 .login-wordmark {
@@ -101,8 +195,8 @@ button {
   top: 32px;
   left: max(24px, calc(50% - 616px));
   z-index: 2;
-  color: #f5efe7;
-  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  color: var(--color-primary-text);
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 13.12px;
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -128,7 +222,7 @@ button {
   background:
     linear-gradient(180deg, rgba(8, 7, 7, 0.08), rgba(8, 7, 7, 0.28)),
     url("/login-visual.gif") center center / cover no-repeat;
-  border: 1px solid rgba(255, 240, 223, 0.08);
+  border: 1px solid var(--color-primary-border);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
@@ -149,9 +243,9 @@ button {
 .auth-panel {
   padding: 34px 30px 30px;
   background:
-    linear-gradient(180deg, rgba(255, 247, 237, 0.03), rgba(255, 247, 237, 0.01)),
-    rgba(10, 8, 9, 0.72);
-  border: 1px solid rgba(255, 245, 232, 0.08);
+    linear-gradient(180deg, rgba(155, 206, 209, 0.24), rgba(18, 26, 27, 0.9)),
+    rgba(14, 20, 21, 0.86);
+  border: 1px solid var(--color-primary-border);
   min-height: calc(100vh - 120px);
 }
 
@@ -161,14 +255,14 @@ button {
 
 .auth-panel-header h2 {
   margin: 0;
-  color: #fff7ed;
+  color: var(--color-primary-text);
   font-size: clamp(1.8rem, 2.3vw, 2.3rem);
   line-height: 1.08;
 }
 
 .eyebrow {
   margin: 0 0 10px;
-  color: #efc28b;
+  color: var(--color-primary-text);
   font-size: 0.82rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -178,7 +272,7 @@ button {
 .topbar p,
 .panel-copy,
 .helper-copy {
-  color: #b8aa9d;
+  color: var(--color-muted-text);
 }
 
 .login-copy {
@@ -204,17 +298,17 @@ button {
 .auth-toggle button {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 243, 224, 0.08);
-  background: rgba(255, 247, 237, 0.03);
-  color: #cbbeb2;
+  border: 1px solid var(--color-primary-border);
+  background: var(--color-primary-surface-faint);
+  color: var(--color-muted-text);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
 .auth-toggle button.active {
-  border-color: rgba(243, 192, 126, 0.42);
-  background: rgba(235, 181, 107, 0.12);
-  color: #fff7ed;
+  border-color: var(--color-primary-border-strong);
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
 }
 
 .auth-toggle button:hover {
@@ -222,7 +316,7 @@ button {
 }
 
 .login-form label {
-  color: #ede0d3;
+  color: var(--color-primary-text);
   font-size: 0.92rem;
   font-weight: 600;
 }
@@ -230,11 +324,11 @@ button {
 .login-form input,
 .panel-header input {
   width: 100%;
-  border: 1px solid rgba(255, 245, 232, 0.08);
+  border: 1px solid var(--color-primary-border);
   border-radius: 16px;
   padding: 14px 15px;
-  color: #fff4e8;
-  background: rgba(255, 247, 237, 0.03);
+  color: var(--color-primary-text);
+  background: var(--color-primary-surface-faint);
 }
 
 .password-field {
@@ -260,7 +354,7 @@ button {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #f0bf78;
+  color: var(--color-primary-text);
   line-height: 1;
   cursor: pointer;
   z-index: 1;
@@ -275,15 +369,15 @@ button {
 }
 
 .password-toggle:hover {
-  background: rgba(240, 191, 120, 0.08);
-  color: #ffd29a;
+  background: var(--color-primary-surface-faint);
+  color: var(--color-primary-text);
   transform: translateY(-50%);
 }
 
 .password-toggle:focus-visible {
-  outline: 2px solid rgba(240, 191, 120, 0.55);
+  outline: 2px solid var(--color-primary-outline);
   outline-offset: 2px;
-  background: rgba(240, 191, 120, 0.1);
+  background: var(--color-primary-surface-faint);
 }
 
 .sr-only {
@@ -307,8 +401,8 @@ button {
 
 .auth-submit-button {
   margin-top: 8px;
-  background: linear-gradient(135deg, #f0bf78, #d18354);
-  color: #1e1310;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
+  color: var(--color-primary-text);
   font-weight: 800;
   cursor: pointer;
 }
@@ -325,6 +419,7 @@ button {
 
 .app-shell {
   max-width: 1280px;
+  position: relative;
 }
 
 .topbar {
@@ -332,8 +427,8 @@ button {
   justify-content: space-between;
   gap: 20px;
   align-items: flex-start;
-  margin-bottom: 24px;
-  padding: 0 4px;
+  margin-bottom: 28px;
+  padding: 20px 4px 10px;
 }
 
 .topbar p {
@@ -341,10 +436,90 @@ button {
   max-width: 60ch;
 }
 
+.topbar-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--color-primary-border);
+  border-radius: 999px;
+  background: var(--color-primary-surface-faint);
+  color: var(--color-primary-text);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.profile-menu-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-primary-border-strong);
+  background: var(--color-primary-surface);
+}
+
+.profile-menu-button:focus-visible {
+  outline: 2px solid var(--color-primary-outline);
+  outline-offset: 3px;
+}
+
+.profile-menu-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.profile-menu-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 10;
+  min-width: 180px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background:
+    linear-gradient(180deg, rgba(155, 206, 209, 0.28), rgba(14, 22, 23, 0.96)),
+    rgba(13, 18, 19, 0.97);
+  border: 1px solid var(--color-primary-border);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.profile-menu-item {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-primary-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.profile-menu-item:hover {
+  background: var(--color-primary-surface-faint);
+  color: var(--color-primary-text);
+  transform: translateY(-1px);
+}
+
+.profile-menu-item.logout {
+  color: #ffcdc2;
+}
+
 .ghost-button {
   background: transparent;
-  border: 1px solid rgba(255, 245, 232, 0.08);
-  color: #f1e5d7;
+  border: 1px solid var(--color-primary-border);
+  color: var(--color-primary-text);
   cursor: pointer;
 }
 
@@ -358,8 +533,42 @@ button {
   gap: 24px;
 }
 
+.profile-view {
+  display: grid;
+}
+
 .panel {
   padding: 24px;
+}
+
+.profile-panel {
+  min-height: 360px;
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
+.profile-form label {
+  color: var(--color-primary-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.profile-form input {
+  width: 100%;
+  border: 1px solid var(--color-primary-border);
+  border-radius: 16px;
+  padding: 14px 15px;
+  color: var(--color-primary-text);
+  background: var(--color-primary-surface-faint);
+}
+
+.profile-save-button {
+  width: fit-content;
+  min-width: 180px;
 }
 
 .panel-wide {
@@ -386,6 +595,10 @@ button {
   margin: 0;
 }
 
+.profile-panel-header {
+  margin-bottom: 22px;
+}
+
 .panel-copy,
 .helper-copy {
   margin: 8px 0 0;
@@ -400,10 +613,35 @@ button {
 }
 
 .summary-row div {
-  background: rgba(2, 6, 23, 0.65);
-  border: 1px solid #334155;
+  background: var(--color-primary-surface-soft);
+  border: 1px solid var(--color-primary-border);
   border-radius: 18px;
   padding: 18px;
+}
+
+.profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.profile-summary-card {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--color-primary-border);
+  background: var(--color-primary-surface-soft);
+}
+
+.profile-summary-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-muted-text);
+  font-size: 0.85rem;
+}
+
+.profile-summary-card strong {
+  color: var(--color-primary-text);
+  font-size: 1.05rem;
 }
 
 .positions {
@@ -424,7 +662,7 @@ button {
 
 .trade-asset-summary h3 {
   margin: 0;
-  color: #fff7ed;
+  color: var(--color-primary-text);
   font-size: 1.5rem;
 }
 
@@ -437,19 +675,19 @@ button {
 .trade-stat-card {
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 245, 232, 0.08);
-  background: rgba(6, 10, 21, 0.58);
+  border: 1px solid var(--color-primary-border);
+  background: var(--color-primary-surface-soft);
 }
 
 .trade-stat-card span {
   display: block;
-  color: #b8aa9d;
+  color: var(--color-muted-text);
   font-size: 0.85rem;
   margin-bottom: 8px;
 }
 
 .trade-stat-card strong {
-  color: #fff7ed;
+  color: var(--color-primary-text);
   font-size: 1.05rem;
 }
 
@@ -462,9 +700,9 @@ button {
 .trade-toggle button {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 243, 224, 0.08);
-  background: rgba(255, 247, 237, 0.03);
-  color: #cbbeb2;
+  border: 1px solid var(--color-primary-border);
+  background: var(--color-primary-surface-faint);
+  color: var(--color-muted-text);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
@@ -474,9 +712,9 @@ button {
 }
 
 .trade-toggle button.active {
-  border-color: rgba(243, 192, 126, 0.42);
-  background: rgba(235, 181, 107, 0.12);
-  color: #fff7ed;
+  border-color: var(--color-primary-border-strong);
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
 }
 
 .trade-toggle button:disabled {
@@ -490,23 +728,23 @@ button {
 }
 
 .trade-form label {
-  color: #ede0d3;
+  color: var(--color-primary-text);
   font-size: 0.92rem;
   font-weight: 600;
 }
 
 .trade-form input {
   width: 100%;
-  border: 1px solid rgba(255, 245, 232, 0.08);
+  border: 1px solid var(--color-primary-border);
   border-radius: 16px;
   padding: 14px 15px;
-  color: #fff4e8;
-  background: rgba(255, 247, 237, 0.03);
+  color: var(--color-primary-text);
+  background: var(--color-primary-surface-faint);
 }
 
 .position-card {
-  background: rgba(2, 6, 23, 0.8);
-  border: 1px solid #334155;
+  background: rgba(32, 49, 51, 0.9);
+  border: 1px solid var(--color-primary-border);
   border-radius: 18px;
   padding: 18px;
   cursor: pointer;
@@ -515,19 +753,19 @@ button {
 
 .position-card:hover,
 .position-card.selected {
-  border-color: #f0bf78;
-  background: rgba(12, 21, 39, 0.95);
+  border-color: var(--color-primary-border-strong);
+  background: rgba(57, 88, 91, 0.98);
   transform: translateY(-2px);
 }
 
 .position-card h3 {
   margin: 0 0 8px;
-  color: #f8fafc;
+  color: var(--color-primary-text);
 }
 
 .position-card p {
   margin: 6px 0;
-  color: #cbd5e1;
+  color: var(--color-body-text);
 }
 
 .card-label-row {
@@ -540,8 +778,8 @@ button {
 .card-badge {
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(240, 191, 120, 0.14);
-  color: #f0bf78;
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -554,12 +792,12 @@ button {
 
 .loading,
 .empty-state {
-  color: #94a3b8;
+  color: var(--color-muted-text);
 }
 
 .error-banner {
-  background: rgba(88, 29, 24, 0.88);
-  color: #ffe0d7;
+  background: rgba(77, 24, 34, 0.88);
+  color: #ffe0e5;
   border-radius: 16px;
   padding: 14px;
   margin-top: 18px;
@@ -567,12 +805,16 @@ button {
 }
 
 .helper-banner {
-  background: rgba(203, 147, 89, 0.12);
-  color: #f6d4b2;
+  background: var(--color-primary-surface);
+  color: var(--color-primary-text);
   border-radius: 16px;
   padding: 14px;
   margin-top: 18px;
-  border: 1px solid rgba(240, 191, 120, 0.18);
+  border: 1px solid var(--color-primary-border);
+}
+
+.profile-wip-banner {
+  max-width: 48rem;
 }
 
 .trade-message {
@@ -593,6 +835,18 @@ button {
 @media (max-width: 899px) {
   .topbar {
     flex-direction: column;
+    padding-top: 8px;
+  }
+
+  .ribbon-label::before,
+  .ribbon-label::after {
+    width: min(88vw, 520px);
+    height: 190px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .auth-layout {
@@ -626,6 +880,25 @@ button {
   .app-shell {
     width: min(100%, calc(100% - 20px));
     padding: 10px 0 28px;
+  }
+
+  .profile-menu-popover {
+    width: min(220px, calc(100vw - 40px));
+  }
+
+  .ribbon-label {
+    padding: 18px 18px 22px 10px;
+  }
+
+  .ribbon-label-text {
+    transform: translateX(14px);
+  }
+
+  .ribbon-label::before,
+  .ribbon-label::after {
+    width: calc(100vw - 90px);
+    height: 150px;
+    left: -4px;
   }
 
   .login-card {
