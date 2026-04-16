@@ -7,16 +7,23 @@ export default function HeikinAshiChart({ bars }) {
   useEffect(() => {
     if (!container.current) return;
 
+    const pageStyles = getComputedStyle(document.documentElement);
+    const chartBackground = pageStyles.getPropertyValue("--color-panel-strong").trim() || "#fff9ef";
+    const chartTextColor = pageStyles.getPropertyValue("--color-text").trim() || "#3f312d";
+    const gridColor = pageStyles.getPropertyValue("--color-border").trim() || "rgba(115, 88, 72, 0.22)";
+    const upColor = pageStyles.getPropertyValue("--color-success").trim() || "#6d9066";
+    const downColor = pageStyles.getPropertyValue("--color-danger").trim() || "#a95d62";
+
     const chart = createChart(container.current, {
       width: container.current.clientWidth,
       height: 420,
       layout: {
-        background: { color: "#0f172a" },
-        textColor: "#e2e8f0",
+        background: { color: chartBackground },
+        textColor: chartTextColor,
       },
       grid: {
-        vertLines: { color: "#334155" },
-        horzLines: { color: "#334155" },
+        vertLines: { color: gridColor },
+        horzLines: { color: gridColor },
       },
       crosshair: {
         mode: 1,
@@ -24,11 +31,11 @@ export default function HeikinAshiChart({ bars }) {
     });
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: "#22c55e",
-      downColor: "#ef4444",
+      upColor,
+      downColor,
       borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      wickUpColor: upColor,
+      wickDownColor: downColor,
     });
 
     const data = bars.map((bar) => ({

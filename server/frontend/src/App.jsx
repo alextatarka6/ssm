@@ -791,6 +791,12 @@ export default function App() {
     (orderSide === "BUY" && isActiveAssetIssuedByUser) ||
     hasInsufficientCash ||
     hasInsufficientShares;
+  const topbarTitle = currentView === "profile" ? "Edit Profile" : "Section Stock Market";
+  const topbarEyebrow = currentView === "profile" ? "Cast Update" : "Now Presenting";
+  const topbarSubtitle =
+    currentView === "profile"
+      ? "Tune your account details and the name on your issued stock certificate."
+      : null;
 
   if (!isAuthReady) {
     return (
@@ -940,11 +946,15 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <RibbonLabel
-          className="topbar-brand"
-          text={currentView === "profile" ? "Edit Profile" : "Section Stock Market"}
-          textAs="h1"
-        />
+        <div className="topbar-accent topbar-accent-left" aria-hidden="true" />
+        <div className="topbar-accent topbar-accent-right" aria-hidden="true" />
+        <div className="topbar-wrapper">
+          <div className="topbar-stage">
+            <p className="eyebrow topbar-kicker">{topbarEyebrow}</p>
+            <RibbonLabel className="topbar-brand" text={topbarTitle} textAs="h1" />
+            {topbarSubtitle ? <p className="topbar-subtitle">{topbarSubtitle}</p> : null}
+          </div>
+        </div>
         <div className="topbar-actions">
           <div className="profile-menu" ref={profileMenuRef}>
             <button
@@ -1122,150 +1132,152 @@ export default function App() {
               </div>
             </section>
 
-            <section className="panel panel-wide">
-              <div className="panel-header">
-                <div>
-                  <h2>{activeAssetDisplayName || "Selected Stock"}</h2>
-                  <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
+            <div className="stock-detail-stack">
+              <section className="panel panel-wide stock-chart-panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>{activeAssetDisplayName || "Selected Stock"}</h2>
+                    <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
+                  </div>
                 </div>
-              </div>
 
-              {candles ? (
-                <HeikinAshiChart bars={candles} />
-              ) : (
-                <div className="loading">
-                  {isLoadingCandles ? "Loading chart..." : "No chart data is available for this asset yet."}
-                </div>
-              )}
-            </section>
-
-            <section className="panel trade-panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Trade Selected Stock</h2>
-                  <p className="panel-copy">
-                    Place a limit buy or sell order on the asset you currently have selected.
-                  </p>
-                </div>
-              </div>
-
-              <div className="trade-panel-body">
-                {activeAsset ? (
-                  <>
-                    <div className="trade-asset-summary">
-                      <div>
-                        <p className="eyebrow">Selected Stock</p>
-                        <h3>{activeAssetDisplayName}</h3>
-                        <p className="helper-copy">Issuer: {activeAssetIssuerName}</p>
-                      </div>
-
-                      <div className="trade-stat-grid">
-                        <div className="trade-stat-card">
-                          <span>Last price</span>
-                          <strong>{formatCurrency(activeAsset.last_price_cents || 0)}</strong>
-                        </div>
-                        <div className="trade-stat-card">
-                          <span>Cash ready</span>
-                          <strong>{formatCurrency(availableCashCents)}</strong>
-                        </div>
-                        <div className="trade-stat-card">
-                          <span>Buyable shares</span>
-                          <strong>{buyableShares}</strong>
-                        </div>
-                        <div className="trade-stat-card">
-                          <span>Sellable shares</span>
-                          <strong>{availableShares}</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="trade-toggle" aria-label="Order side">
-                      <button
-                        type="button"
-                        className={orderSide === "BUY" ? "active" : ""}
-                        onClick={() => setOrderSide("BUY")}
-                        disabled={isActiveAssetIssuedByUser}
-                      >
-                        Buy
-                      </button>
-                      <button
-                        type="button"
-                        className={orderSide === "SELL" ? "active" : ""}
-                        onClick={() => setOrderSide("SELL")}
-                        disabled={availableShares === 0}
-                      >
-                        Sell
-                      </button>
-                    </div>
-
-                    <form className="trade-form" onSubmit={handleTradeSubmit}>
-                      <label htmlFor="trade-quantity">Quantity</label>
-                      <input
-                        id="trade-quantity"
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={orderQuantity}
-                        onChange={(event) => setOrderQuantity(event.target.value)}
-                        placeholder="10"
-                      />
-
-                      <label htmlFor="trade-limit-price">Limit Price Per Share</label>
-                      <input
-                        id="trade-limit-price"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={orderLimitPrice}
-                        onChange={(event) => setOrderLimitPrice(event.target.value)}
-                        placeholder="12.50"
-                      />
-
-                      {estimatedOrderValueCents !== null ? (
-                        <p className="helper-copy">
-                          Estimated order value: {formatCurrency(estimatedOrderValueCents)}
-                        </p>
-                      ) : null}
-
-                      {orderSide === "BUY" && isActiveAssetIssuedByUser ? (
-                        <div className="helper-banner">
-                          Buying your own stock is blocked, but you can place sell orders for shares you hold.
-                        </div>
-                      ) : null}
-
-                      {orderSide === "BUY" && hasInsufficientCash ? (
-                        <div className="helper-banner">
-                          This buy order is larger than the cash currently available in the account.
-                        </div>
-                      ) : null}
-
-                      {orderSide === "SELL" && availableShares === 0 ? (
-                        <div className="helper-banner">
-                          There are no unreserved shares of this stock available to sell right now.
-                        </div>
-                      ) : null}
-
-                      {orderSide === "SELL" && hasInsufficientShares ? (
-                        <div className="helper-banner">
-                          The order quantity is higher than the number of shares available to sell.
-                        </div>
-                      ) : null}
-
-                      {tradingNotice ? <div className="helper-banner">{tradingNotice}</div> : null}
-                      {tradingError ? <div className="error-banner trade-message">{tradingError}</div> : null}
-
-                      <button className="auth-submit-button" type="submit" disabled={isTradeSubmitDisabled}>
-                        {isSubmittingOrder
-                          ? "Submitting Order..."
-                          : `Place ${orderSide === "BUY" ? "Buy" : "Sell"} Order`}
-                      </button>
-                    </form>
-                  </>
+                {candles ? (
+                  <HeikinAshiChart bars={candles} />
                 ) : (
-                  <div className="empty-state">Select a market stock to place a trade.</div>
+                  <div className="loading">
+                    {isLoadingCandles ? "Loading chart..." : "No chart data is available for this asset yet."}
+                  </div>
                 )}
-              </div>
-            </section>
+              </section>
+
+              <section className="panel trade-panel trade-panel-attached">
+                <div className="panel-header">
+                  <div>
+                    <h2>Trade Selected Stock</h2>
+                    <p className="panel-copy">
+                      Place a limit buy or sell order on the asset you currently have selected.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="trade-panel-body">
+                  {activeAsset ? (
+                    <>
+                      <div className="trade-asset-summary">
+                        <div>
+                          <p className="eyebrow">Selected Stock</p>
+                          <h3>{activeAssetDisplayName}</h3>
+                          <p className="helper-copy">Issuer: {activeAssetIssuerName}</p>
+                        </div>
+
+                        <div className="trade-stat-grid">
+                          <div className="trade-stat-card">
+                            <span>Last price</span>
+                            <strong>{formatCurrency(activeAsset.last_price_cents || 0)}</strong>
+                          </div>
+                          <div className="trade-stat-card">
+                            <span>Cash ready</span>
+                            <strong>{formatCurrency(availableCashCents)}</strong>
+                          </div>
+                          <div className="trade-stat-card">
+                            <span>Buyable shares</span>
+                            <strong>{buyableShares}</strong>
+                          </div>
+                          <div className="trade-stat-card">
+                            <span>Sellable shares</span>
+                            <strong>{availableShares}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="trade-toggle" aria-label="Order side">
+                        <button
+                          type="button"
+                          className={orderSide === "BUY" ? "active" : ""}
+                          onClick={() => setOrderSide("BUY")}
+                          disabled={isActiveAssetIssuedByUser}
+                        >
+                          Buy
+                        </button>
+                        <button
+                          type="button"
+                          className={orderSide === "SELL" ? "active" : ""}
+                          onClick={() => setOrderSide("SELL")}
+                          disabled={availableShares === 0}
+                        >
+                          Sell
+                        </button>
+                      </div>
+
+                      <form className="trade-form" onSubmit={handleTradeSubmit}>
+                        <label htmlFor="trade-quantity">Quantity</label>
+                        <input
+                          id="trade-quantity"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={orderQuantity}
+                          onChange={(event) => setOrderQuantity(event.target.value)}
+                          placeholder="10"
+                        />
+
+                        <label htmlFor="trade-limit-price">Limit Price Per Share</label>
+                        <input
+                          id="trade-limit-price"
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={orderLimitPrice}
+                          onChange={(event) => setOrderLimitPrice(event.target.value)}
+                          placeholder="12.50"
+                        />
+
+                        {estimatedOrderValueCents !== null ? (
+                          <p className="helper-copy">
+                            Estimated order value: {formatCurrency(estimatedOrderValueCents)}
+                          </p>
+                        ) : null}
+
+                        {orderSide === "BUY" && isActiveAssetIssuedByUser ? (
+                          <div className="helper-banner">
+                            Buying your own stock is blocked, but you can place sell orders for shares you hold.
+                          </div>
+                        ) : null}
+
+                        {orderSide === "BUY" && hasInsufficientCash ? (
+                          <div className="helper-banner">
+                            This buy order is larger than the cash currently available in the account.
+                          </div>
+                        ) : null}
+
+                        {orderSide === "SELL" && availableShares === 0 ? (
+                          <div className="helper-banner">
+                            There are no unreserved shares of this stock available to sell right now.
+                          </div>
+                        ) : null}
+
+                        {orderSide === "SELL" && hasInsufficientShares ? (
+                          <div className="helper-banner">
+                            The order quantity is higher than the number of shares available to sell.
+                          </div>
+                        ) : null}
+
+                        {tradingNotice ? <div className="helper-banner">{tradingNotice}</div> : null}
+                        {tradingError ? <div className="error-banner trade-message">{tradingError}</div> : null}
+
+                        <button className="auth-submit-button" type="submit" disabled={isTradeSubmitDisabled}>
+                          {isSubmittingOrder
+                            ? "Submitting Order..."
+                            : `Place ${orderSide === "BUY" ? "Buy" : "Sell"} Order`}
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div className="empty-state">Select a market stock to place a trade.</div>
+                  )}
+                </div>
+              </section>
+            </div>
 
             <section className="panel market-panel">
               <div className="panel-header">
