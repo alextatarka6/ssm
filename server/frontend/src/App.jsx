@@ -56,7 +56,7 @@ function getEmailRedirectTo() {
     return undefined;
   }
 
-  return `${window.location.origin}/`;
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
 }
 
 function getAuthErrorMessage(error) {

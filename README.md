@@ -121,6 +121,32 @@ server/frontend/dist
 
 Once built, those files can be served by the FastAPI app.
 
+## Deploy To GitHub Pages
+
+GitHub Pages can host the React frontend in `server/frontend`, but it cannot run the FastAPI backend. For a working production app, deploy the backend somewhere else first, then point the frontend at that API.
+
+This repo includes a GitHub Actions workflow at [.github/workflows/deploy-pages.yml](/home/inferno/projects/ssm/.github/workflows/deploy-pages.yml) that builds the Vite app and publishes `server/frontend/dist` to GitHub Pages on pushes to `master` or `main`.
+
+Before using it, add these repository-level settings in GitHub:
+
+- repository variable `VITE_SUPABASE_URL`
+- repository secret `VITE_SUPABASE_PUBLISHABLE_KEY`
+- repository variable `VITE_API_BASE_URL`
+
+`VITE_API_BASE_URL` should be the full deployed backend URL ending in `/api`, for example:
+
+```text
+https://your-backend.example.com/api
+```
+
+Then enable GitHub Pages in the repository settings:
+
+1. Open `Settings` -> `Pages`.
+2. Under `Build and deployment`, set `Source` to `GitHub Actions`.
+3. Push to `main` or `master`, or run the workflow manually from the `Actions` tab.
+
+The workflow automatically builds the frontend with the correct GitHub Pages base path, so project sites like `https://username.github.io/ssm/` work without hand-editing asset URLs.
+
 ## Running Tests
 
 Backend tests:
