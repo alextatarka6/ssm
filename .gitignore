@@ -13,6 +13,7 @@ server/backend/local.db
 # Supabase local CLI state
 supabase/.temp/
 supabase/.branches/
+supabase/seed_fake_market_chart_data.sql
 
 assets/
 Makefile

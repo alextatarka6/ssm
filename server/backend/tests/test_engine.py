@@ -208,6 +208,28 @@ def test_cancel_releases_sell_reserve(eng: MatchingEngine) -> None:
 
     assert_invariants(eng)
 
+def test_user_can_buy_their_own_stock(eng: MatchingEngine) -> None:
+    eng.reset()
+    eng.set_user_default("bob", 100_000)
+    eng.create_person_asset("bob", "bob-stock")
+
+    sell_order, sell_trades = eng.process_order(NewOrder("bob", "bob-stock", Side.SELL, 10, 1200))
+    assert sell_trades == []
+
+    buy_order, buy_trades = eng.process_order(NewOrder("bob", "bob-stock", Side.BUY, 10, 1500))
+
+    assert len(buy_trades) == 1
+    assert buy_trades[0].buyer_id == "bob"
+    assert buy_trades[0].seller_id == "bob"
+    assert buy_trades[0].buy_order_id == buy_order.id
+    assert buy_trades[0].sell_order_id == sell_order.id
+    assert eng.accounts["bob"].cash_cents == 100_000
+    assert eng.accounts["bob"].reserved_cash_cents == 0
+    assert eng._getholding("bob", "bob-stock").shares == 400
+    assert eng._getholding("bob", "bob-stock").reserved_shares == 0
+
+    assert_invariants(eng)
+
 def test_reject_buy_insufficient_funds(eng: MatchingEngine) -> None:
     eng.reset()
     eng.set_user_default("alice", 1000)  # $10.00

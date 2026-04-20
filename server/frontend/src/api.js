@@ -36,6 +36,10 @@ async function fetchJson(path, options = {}) {
     throw error;
   }
 
+  if (response.status === 204) {
+    return null;
+  }
+
   return response.json();
 }
 
@@ -86,5 +90,14 @@ export function updateAsset(assetId, payload) {
   return fetchJson(`/assets/${encodeURIComponent(assetId)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCurrentProfile(accessToken) {
+  return fetchJson("/users/me", {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
 }

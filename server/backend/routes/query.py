@@ -55,6 +55,7 @@ def list_assets(request: Request):
                     asset_id=asset.asset_id,
                     issuer_user_id=asset.issuer_user_id,
                     issuer_username=None,
+                    issuer_avatar_url=None,
                     total_supply=asset.total_supply,
                     name=asset.name,
                     last_price_cents=engine.last_price_cents.get(asset.asset_id),
@@ -70,7 +71,11 @@ def list_assets(request: Request):
                 select
                   a.asset_id,
                   a.issuer_auth_user_id::text as issuer_user_id,
-                  p.username as issuer_username,
+                  case
+                    when p.deleted_at is null then p.username
+                    else '[deleted profile]'
+                  end as issuer_username,
+                  p.avatar_url as issuer_avatar_url,
                   a.total_supply,
                   a.name,
                   (
@@ -112,6 +117,7 @@ def get_asset(asset_id: str, request: Request):
                 asset_id=asset.asset_id,
                 issuer_user_id=asset.issuer_user_id,
                 issuer_username=None,
+                issuer_avatar_url=None,
                 total_supply=asset.total_supply,
                 name=asset.name,
                 last_price_cents=engine.last_price_cents.get(asset.asset_id),
@@ -125,7 +131,11 @@ def get_asset(asset_id: str, request: Request):
                 select
                   a.asset_id,
                   a.issuer_auth_user_id::text as issuer_user_id,
-                  p.username as issuer_username,
+                  case
+                    when p.deleted_at is null then p.username
+                    else '[deleted profile]'
+                  end as issuer_username,
+                  p.avatar_url as issuer_avatar_url,
                   a.total_supply,
                   a.name,
                   (

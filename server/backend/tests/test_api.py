@@ -110,19 +110,35 @@ def test_place_buy_order_and_cancel(engine):
     assert cancel_response["status"] == "CANCELED"
 
 
-def test_reject_buying_own_stock(engine):
+def test_allow_buying_own_stock(engine):
     request = build_request(engine)
     create_user(UserCreate(user_id="bob", initial_cash_cents=100000), request)
     create_asset(AssetCreate(issuer_user_id="bob", asset_id="bob-stock"), request)
 
-    with pytest.raises(ValueError, match="may not buy their own stock"):
-        place_order(
-            OrderCreate(
-                user_id="bob",
-                asset_id="bob-stock",
-                side="BUY",
-                qty=1,
-                limit_price_cents=1000,
-            ),
-            request,
-        )
+    place_order(
+        OrderCreate(
+            user_id="bob",
+            asset_id="bob-stock",
+            side="SELL",
+            qty=1,
+            limit_price_cents=1000,
+        ),
+        request,
+    )
+
+    response = place_order(
+        OrderCreate(
+            user_id="bob",
+            asset_id="bob-stock",
+            side="BUY",
+            qty=1,
+            limit_price_cents=1000,
+        ),
+        request,
+    )
+
+    assert response["order"]["status"] == "FILLED"
+    assert response["order"]["remaining_qty"] == 0
+    assert len(response["trades"]) == 1
+    assert response["trades"][0]["buyer_id"] == "bob"
+    assert response["trades"][0]["seller_id"] == "bob"

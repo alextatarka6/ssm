@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
 
-export default function HeikinAshiChart({ bars }) {
+export default function StockChart({ bars }) {
   const container = useRef(null);
 
   useEffect(() => {
@@ -40,10 +40,10 @@ export default function HeikinAshiChart({ bars }) {
 
     const data = bars.map((bar) => ({
       time: bar.time,
-      open: bar.ha_open,
-      high: bar.ha_high,
-      low: bar.ha_low,
-      close: bar.ha_close,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
     }));
 
     candlestickSeries.setData(data);

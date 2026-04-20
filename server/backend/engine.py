@@ -482,8 +482,6 @@ class MatchingEngine:
             raise ValueError("Limit price must be positive")
         self.validate_user(req.user_id)
         self.validate_asset(req.asset_id)
-        if self.assets[req.asset_id].issuer_user_id == req.user_id and req.side == Side.BUY:
-            raise ValueError("Users may not buy their own stock")
 
     def _reserve_for_order(self, order: Order) -> None:
         if order.side == Side.BUY:

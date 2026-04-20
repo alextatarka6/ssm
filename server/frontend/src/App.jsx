@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createUser,
+  deleteCurrentProfile,
   getAssetCandles,
   getAssets,
   getUserAccountBalances,
@@ -8,8 +9,10 @@ import {
   placeOrder,
   updateAsset,
 } from "./api";
-import HeikinAshiChart from "./components/HeikinAshiChart";
+import StockChart from "./components/StockChart";
 import { supabase } from "./utils/supabase";
+
+const ALLOWED_EMAIL_DOMAIN = "@nd.edu";
 
 function formatCurrency(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -28,6 +31,10 @@ function formatPriceInput(cents) {
 
 function normalizeEmail(value) {
   return value.trim().toLowerCase();
+}
+
+function isAllowedRegistrationEmail(email) {
+  return typeof email === "string" && email.endsWith(ALLOWED_EMAIL_DOMAIN);
 }
 
 function getUsernameFromUser(user) {
@@ -49,6 +56,37 @@ function getUsernameFromUser(user) {
   }
 
   return null;
+}
+
+function getAvatarUrlFromUser(user) {
+  const candidate = user?.user_metadata?.avatar_url;
+  if (typeof candidate !== "string") {
+    return null;
+  }
+
+  const trimmedCandidate = candidate.trim();
+  return trimmedCandidate || null;
+}
+
+function getInitials(value) {
+  if (typeof value !== "string") {
+    return "?";
+  }
+
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "?";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 }
 
 function getEmailRedirectTo() {
@@ -129,6 +167,35 @@ function getEditableAssetLabel(asset) {
   return customName;
 }
 
+function AvatarBadge({ imageUrl, label, className = "" }) {
+  const avatarClassName = ["avatar-badge", className].filter(Boolean).join(" ");
+
+  if (imageUrl) {
+    return <img className={avatarClassName} src={imageUrl} alt={label ? `${label} profile picture` : "Profile picture"} />;
+  }
+
+  return (
+    <span className={avatarClassName} aria-hidden="true">
+      {getInitials(label)}
+    </span>
+  );
+}
+
+function AssetTitle({ asset, sessionUserId, sessionUsername, className = "", heading = "span" }) {
+  const HeadingTag = heading;
+  const issuerName = getAssetIssuerName(asset, { sessionUserId, sessionUsername }) || "User";
+  const titleClassName = ["asset-title", className].filter(Boolean).join(" ");
+
+  return (
+    <div className={titleClassName}>
+      <AvatarBadge imageUrl={asset?.issuer_avatar_url || null} label={issuerName} className="asset-title-avatar" />
+      <HeadingTag className="asset-title-text">
+        {formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}
+      </HeadingTag>
+    </div>
+  );
+}
+
 function RibbonLabel({ as: Tag = "div", text, textAs: TextTag = "span", className = "" }) {
   const containerClassName = ["ribbon-label", className].filter(Boolean).join(" ");
 
@@ -149,6 +216,7 @@ export default function App() {
   const [sessionUserId, setSessionUserId] = useState(null);
   const [sessionUsername, setSessionUsername] = useState(null);
   const [sessionEmail, setSessionEmail] = useState(null);
+  const [sessionAvatarUrl, setSessionAvatarUrl] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [assets, setAssets] = useState([]);
   const [activeAssetId, setActiveAssetId] = useState(null);
@@ -168,13 +236,18 @@ export default function App() {
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePassword, setProfilePassword] = useState("");
   const [profileStockLabel, setProfileStockLabel] = useState("Stock");
+  const [profileAvatarFile, setProfileAvatarFile] = useState(null);
+  const [profileAvatarPreviewUrl, setProfileAvatarPreviewUrl] = useState(null);
   const [profileNotice, setProfileNotice] = useState(null);
   const [profileError, setProfileError] = useState(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isDeleteProfileDialogOpen, setIsDeleteProfileDialogOpen] = useState(false);
+  const [isDeletingProfile, setIsDeletingProfile] = useState(false);
   const [orderSide, setOrderSide] = useState("BUY");
   const [orderQuantity, setOrderQuantity] = useState("1");
   const [orderLimitPrice, setOrderLimitPrice] = useState("");
   const profileMenuRef = useRef(null);
+  const profileAvatarInputRef = useRef(null);
 
   const holdingAssets = useMemo(() => {
     if (!portfolio) {
@@ -250,6 +323,7 @@ export default function App() {
     setSessionUserId(null);
     setSessionUsername(null);
     setSessionEmail(null);
+    setSessionAvatarUrl(null);
     setPortfolio(null);
     setAssets([]);
     setCandles(null);
@@ -261,8 +335,12 @@ export default function App() {
     setProfileEmail("");
     setProfilePassword("");
     setProfileStockLabel("Stock");
+    setProfileAvatarFile(null);
+    setProfileAvatarPreviewUrl(null);
     setProfileNotice(null);
     setProfileError(null);
+    setIsDeleteProfileDialogOpen(false);
+    setIsDeletingProfile(false);
     setOrderSide("BUY");
     setOrderQuantity("1");
     setOrderLimitPrice("");
@@ -336,6 +414,7 @@ export default function App() {
       setPageError(null);
       setSessionUsername(nextUsername);
       setSessionEmail(user.email || null);
+      setSessionAvatarUrl(getAvatarUrlFromUser(user));
       await loadDashboard(authUserId, { createIfMissing: true });
     } catch (err) {
       resetDashboardState();
@@ -358,6 +437,11 @@ export default function App() {
 
     if (authMode === "register" && !trimmedUsername) {
       setAuthError("Choose a username to create your account.");
+      return;
+    }
+
+    if (authMode === "register" && !isAllowedRegistrationEmail(trimmedEmail)) {
+      setAuthError(`Use an email address ending in ${ALLOWED_EMAIL_DOMAIN} to register.`);
       return;
     }
 
@@ -417,6 +501,11 @@ export default function App() {
       return;
     }
 
+    if (!isAllowedRegistrationEmail(trimmedEmail)) {
+      setAuthError(`Verification emails can only be sent to addresses ending in ${ALLOWED_EMAIL_DOMAIN}.`);
+      return;
+    }
+
     try {
       setIsResendingVerification(true);
       setAuthError(null);
@@ -470,10 +559,87 @@ export default function App() {
     setIsProfileMenuOpen(false);
     setProfileNotice(null);
     setProfileError(null);
+    setProfileAvatarFile(null);
+    setProfileAvatarPreviewUrl(sessionAvatarUrl);
+
+    if (profileAvatarInputRef.current) {
+      profileAvatarInputRef.current.value = "";
+    }
   }
 
   function handleReturnToDashboard() {
     setCurrentView("dashboard");
+  }
+
+  function handleOpenDeleteProfileDialog() {
+    setProfileNotice(null);
+    setProfileError(null);
+    setIsDeleteProfileDialogOpen(true);
+  }
+
+  function handleCloseDeleteProfileDialog() {
+    if (isDeletingProfile) {
+      return;
+    }
+
+    setIsDeleteProfileDialogOpen(false);
+  }
+
+  function handleProfileAvatarChange(event) {
+    const nextFile = event.target.files?.[0] || null;
+    setProfileNotice(null);
+    setProfileError(null);
+
+    if (!nextFile) {
+      setProfileAvatarFile(null);
+      setProfileAvatarPreviewUrl(sessionAvatarUrl);
+      return;
+    }
+
+    const normalizedType = nextFile.type.toLowerCase();
+    if (!normalizedType.startsWith("image/")) {
+      setProfileAvatarFile(null);
+      setProfileError("Choose an image file for your profile picture.");
+      event.target.value = "";
+      return;
+    }
+
+    if (nextFile.size > 5 * 1024 * 1024) {
+      setProfileAvatarFile(null);
+      setProfileError("Profile pictures must be 5 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setProfileAvatarFile(nextFile);
+    setProfileAvatarPreviewUrl(URL.createObjectURL(nextFile));
+  }
+
+  function handleRemoveProfileAvatar() {
+    setProfileAvatarFile(null);
+    setProfileAvatarPreviewUrl(null);
+    setProfileNotice(null);
+    setProfileError(null);
+
+    if (profileAvatarInputRef.current) {
+      profileAvatarInputRef.current.value = "";
+    }
+  }
+
+  async function uploadProfileAvatar(userId, file) {
+    const sanitizedExtension = (file.name.split(".").pop() || "png").replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
+    const storagePath = `${userId}/avatar.${sanitizedExtension}`;
+    const { error: uploadError } = await supabase.storage.from("profile-pictures").upload(storagePath, file, { upsert: true });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("profile-pictures").getPublicUrl(storagePath);
+
+    return publicUrl || null;
   }
 
   async function handleProfileSubmit(event) {
@@ -487,6 +653,9 @@ export default function App() {
     const trimmedProfileUsername = profileUsername.trim();
     const normalizedProfileEmail = normalizeEmail(profileEmail);
     const trimmedStockLabel = profileStockLabel.trim();
+    const previousUsername = sessionUsername || "";
+    const previousEmail = sessionEmail || "";
+    const previousAvatarUrl = sessionAvatarUrl || null;
 
     if (!trimmedProfileUsername) {
       setProfileError("Choose a username before saving your profile.");
@@ -498,16 +667,19 @@ export default function App() {
       return;
     }
 
+    if (!isAllowedRegistrationEmail(normalizedProfileEmail)) {
+      setProfileError(`Use an email address ending in ${ALLOWED_EMAIL_DOMAIN}.`);
+      return;
+    }
+
     if (issuedAsset && !trimmedStockLabel) {
       setProfileError("Choose a stock label for your issued stock.");
       return;
     }
 
     const authUpdates = {};
-    if (trimmedProfileUsername !== (sessionUsername || "")) {
-      authUpdates.data = { username: trimmedProfileUsername };
-    }
-    if (normalizedProfileEmail !== (sessionEmail || "")) {
+    let nextAvatarUrl = previousAvatarUrl;
+    if (normalizedProfileEmail !== previousEmail) {
       authUpdates.email = normalizedProfileEmail;
     }
     if (profilePassword) {
@@ -519,16 +691,32 @@ export default function App() {
       setProfileError(null);
       setProfileNotice(null);
 
+      if (profileAvatarFile) {
+        nextAvatarUrl = await uploadProfileAvatar(sessionUserId, profileAvatarFile);
+      } else if (!profileAvatarPreviewUrl) {
+        nextAvatarUrl = null;
+      }
+
+      if (trimmedProfileUsername !== previousUsername || nextAvatarUrl !== previousAvatarUrl) {
+        authUpdates.data = {
+          username: trimmedProfileUsername,
+          avatar_url: nextAvatarUrl,
+        };
+      }
+
       if (Object.keys(authUpdates).length > 0) {
         const { data, error } = await supabase.auth.updateUser(authUpdates);
         if (error) {
           throw error;
         }
 
-        if (trimmedProfileUsername !== (sessionUsername || "")) {
+        if (trimmedProfileUsername !== previousUsername || nextAvatarUrl !== previousAvatarUrl) {
           const { error: profileUpdateError } = await supabase
             .from("profiles")
-            .update({ username: trimmedProfileUsername })
+            .update({
+              username: trimmedProfileUsername,
+              avatar_url: nextAvatarUrl,
+            })
             .eq("id", sessionUserId);
 
           if (profileUpdateError) {
@@ -539,6 +727,7 @@ export default function App() {
         const updatedUser = data.user;
         setSessionUsername(getUsernameFromUser(updatedUser) || trimmedProfileUsername);
         setSessionEmail(updatedUser?.email || normalizedProfileEmail);
+        setSessionAvatarUrl(getAvatarUrlFromUser(updatedUser) || nextAvatarUrl);
       }
 
       if (issuedAsset && trimmedStockLabel !== getEditableAssetLabel(issuedAsset)) {
@@ -549,9 +738,13 @@ export default function App() {
       }
 
       setProfilePassword("");
+      setProfileAvatarFile(null);
+      if (profileAvatarInputRef.current) {
+        profileAvatarInputRef.current.value = "";
+      }
       await refreshDashboard({ preferredAssetId: activeAssetId });
       setProfileNotice(
-        normalizedProfileEmail !== (sessionEmail || "")
+        normalizedProfileEmail !== previousEmail
           ? "Profile saved. Check your inbox if Supabase asks you to confirm the new email address."
           : "Profile saved.",
       );
@@ -559,6 +752,45 @@ export default function App() {
       setProfileError(err.message || "Unable to save your profile right now.");
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  async function handleDeleteProfile() {
+    if (!sessionUserId) {
+      setProfileError("You need to be signed in to delete your profile.");
+      setIsDeleteProfileDialogOpen(false);
+      return;
+    }
+
+    try {
+      setIsDeletingProfile(true);
+      setProfileError(null);
+      setProfileNotice(null);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Your session expired. Sign in again to delete your profile.");
+      }
+
+      await deleteCurrentProfile(session.access_token);
+      await supabase.auth.signOut();
+      resetDashboardState();
+      setCurrentView("dashboard");
+      setAuthMode("login");
+      setAuthNotice("Your profile has been deleted.");
+      setEmail("");
+      setPassword("");
+      setShowPassword(false);
+      setUsername("");
+      setIsProfileMenuOpen(false);
+      setIsDeleteProfileDialogOpen(false);
+    } catch (err) {
+      setProfileError(err.message || "Unable to delete your profile right now.");
+    } finally {
+      setIsDeletingProfile(false);
     }
   }
 
@@ -588,11 +820,6 @@ export default function App() {
 
     if (!orderLimitPriceCents) {
       setTradingError("Enter a valid limit price in dollars.");
-      return;
-    }
-
-    if (orderSide === "BUY" && isActiveAssetIssuedByUser) {
-      setTradingError("You can't buy your own stock.");
       return;
     }
 
@@ -647,7 +874,7 @@ export default function App() {
       return;
     }
 
-    const nextSide = isActiveAssetIssuedByUser && availableShares > 0 ? "SELL" : "BUY";
+    const nextSide = "BUY";
     setOrderSide(nextSide);
     setOrderQuantity("1");
     setOrderLimitPrice(formatPriceInput(activeAsset.last_price_cents));
@@ -773,11 +1000,45 @@ export default function App() {
   }, [isProfileMenuOpen]);
 
   useEffect(() => {
+    if (!isDeleteProfileDialogOpen) {
+      return undefined;
+    }
+
+    function handleDocumentKeyDown(event) {
+      if (event.key === "Escape") {
+        handleCloseDeleteProfileDialog();
+      }
+    }
+
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [isDeleteProfileDialogOpen, isDeletingProfile]);
+
+  useEffect(() => {
     setProfileUsername(sessionUsername || "");
     setProfileEmail(sessionEmail || "");
     setProfilePassword("");
     setProfileStockLabel(getEditableAssetLabel(issuedAsset));
-  }, [issuedAsset, sessionEmail, sessionUsername]);
+    setProfileAvatarFile(null);
+    setProfileAvatarPreviewUrl(sessionAvatarUrl);
+
+    if (profileAvatarInputRef.current) {
+      profileAvatarInputRef.current.value = "";
+    }
+  }, [issuedAsset, sessionAvatarUrl, sessionEmail, sessionUsername]);
+
+  useEffect(() => {
+    if (!profileAvatarPreviewUrl || !profileAvatarPreviewUrl.startsWith("blob:")) {
+      return undefined;
+    }
+
+    return () => {
+      URL.revokeObjectURL(profileAvatarPreviewUrl);
+    };
+  }, [profileAvatarPreviewUrl]);
 
   const activeAssetDisplayName = activeAsset
     ? formatAssetDisplayName(activeAsset, { sessionUserId, sessionUsername })
@@ -788,7 +1049,6 @@ export default function App() {
     !activeAsset ||
     !orderQuantityValue ||
     !orderLimitPriceCents ||
-    (orderSide === "BUY" && isActiveAssetIssuedByUser) ||
     hasInsufficientCash ||
     hasInsufficientShares;
   const topbarTitle = currentView === "profile" ? "Edit Profile" : "Section Stock Market";
@@ -826,7 +1086,11 @@ export default function App() {
               <div className="auth-panel-header">
                 {authMode === "login" ? <p className="eyebrow">Welcome back</p> : null}
                 <h2>{authMode === "login" ? "Sign in to your account" : "Create your account"}</h2>
-                <p className="helper-copy">Use your email and password below.</p>
+                <p className="helper-copy">
+                  {authMode === "login"
+                    ? "Use your email and password below."
+                    : `Use your ${ALLOWED_EMAIL_DOMAIN} email and password below.`}
+                </p>
               </div>
 
               <div className="auth-toggle" aria-label="Authentication mode">
@@ -965,19 +1229,11 @@ export default function App() {
               aria-expanded={isProfileMenuOpen}
               onClick={() => setIsProfileMenuOpen((currentValue) => !currentValue)}
             >
-              <svg
-                className="profile-menu-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M18 20a6 6 0 0 0-12 0" />
-                <circle cx="12" cy="8" r="4" />
-              </svg>
+              <AvatarBadge
+                imageUrl={sessionAvatarUrl}
+                label={sessionUsername || sessionEmail || "Your profile"}
+                className="profile-menu-avatar"
+              />
             </button>
 
             {isProfileMenuOpen ? (
@@ -1031,14 +1287,14 @@ export default function App() {
               />
 
               <label htmlFor="profile-email">Email</label>
-              <input
-                id="profile-email"
-                type="email"
-                value={profileEmail}
-                onChange={(event) => setProfileEmail(event.target.value)}
-                autoComplete="email"
-                placeholder="you@example.com"
-              />
+                <input
+                  id="profile-email"
+                  type="email"
+                  value={profileEmail}
+                  onChange={(event) => setProfileEmail(event.target.value)}
+                  autoComplete="email"
+                  placeholder={`you${ALLOWED_EMAIL_DOMAIN}`}
+                />
 
               <label htmlFor="profile-password">New Password</label>
               <input
@@ -1049,6 +1305,46 @@ export default function App() {
                 autoComplete="new-password"
                 placeholder="Leave blank to keep your current password"
               />
+
+              <div className="profile-avatar-editor">
+                <div className="profile-avatar-preview-panel">
+                  <span className="profile-avatar-label">Profile Picture</span>
+                  <div className="profile-avatar-preview-row">
+                    <AvatarBadge
+                      imageUrl={profileAvatarPreviewUrl}
+                      label={profileUsername || sessionUsername || sessionEmail || "Your profile"}
+                      className="profile-avatar-preview"
+                    />
+                    <div>
+                      <p className="helper-copy profile-avatar-copy">
+                        Upload a square photo, logo, or headshot to represent your stock across the market.
+                      </p>
+                      <p className="helper-copy profile-avatar-copy">PNG, JPG, GIF, and WebP up to 5 MB.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-avatar-controls">
+                  <label className="ghost-button profile-avatar-upload" htmlFor="profile-avatar">
+                    {profileAvatarFile ? "Choose a Different Image" : "Upload Profile Picture"}
+                  </label>
+                  <input
+                    ref={profileAvatarInputRef}
+                    id="profile-avatar"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={handleProfileAvatarChange}
+                  />
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={handleRemoveProfileAvatar}
+                    disabled={!profileAvatarPreviewUrl && !profileAvatarFile}
+                  >
+                    Remove Picture
+                  </button>
+                </div>
+              </div>
 
               {issuedAsset ? (
                 <>
@@ -1075,18 +1371,41 @@ export default function App() {
                 </div>
                 <div className="profile-summary-card">
                   <span>Issued stock</span>
-                  <strong>
-                    {issuedAsset ? formatAssetDisplayName(issuedAsset, { sessionUserId, sessionUsername }) : "None yet"}
-                  </strong>
+                  {issuedAsset ? (
+                    <AssetTitle
+                      asset={issuedAsset}
+                      sessionUserId={sessionUserId}
+                      sessionUsername={sessionUsername}
+                      className="profile-issued-stock-title"
+                      heading="strong"
+                    />
+                  ) : (
+                    <strong>None yet</strong>
+                  )}
                 </div>
               </div>
 
               {profileNotice ? <div className="helper-banner profile-wip-banner">{profileNotice}</div> : null}
               {profileError ? <div className="error-banner">{profileError}</div> : null}
 
-              <button className="auth-submit-button profile-save-button" type="submit" disabled={isSavingProfile}>
-                {isSavingProfile ? "Saving..." : "Save Profile"}
-              </button>
+              <div className="profile-form-actions">
+                <button className="auth-submit-button profile-save-button" type="submit" disabled={isSavingProfile}>
+                  {isSavingProfile ? "Saving..." : "Save Profile"}
+                </button>
+
+                <button
+                  className="ghost-button profile-delete-button"
+                  type="button"
+                  onClick={handleOpenDeleteProfileDialog}
+                  disabled={isSavingProfile || isDeletingProfile}
+                >
+                  Delete Profile
+                </button>
+              </div>
+
+              <p className="helper-copy profile-delete-copy">
+                Deleting your profile permanently removes this account and its market history.
+              </p>
             </form>
           </section>
         ) : (
@@ -1136,13 +1455,23 @@ export default function App() {
               <section className="panel panel-wide stock-chart-panel">
                 <div className="panel-header">
                   <div>
-                    <h2>{activeAssetDisplayName || "Selected Stock"}</h2>
+                    {activeAsset ? (
+                      <AssetTitle
+                        asset={activeAsset}
+                        sessionUserId={sessionUserId}
+                        sessionUsername={sessionUsername}
+                        className="panel-asset-title"
+                        heading="h2"
+                      />
+                    ) : (
+                      <h2>Selected Stock</h2>
+                    )}
                     <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
                   </div>
                 </div>
 
                 {candles ? (
-                  <HeikinAshiChart bars={candles} />
+                  <StockChart bars={candles} />
                 ) : (
                   <div className="loading">
                     {isLoadingCandles ? "Loading chart..." : "No chart data is available for this asset yet."}
@@ -1166,7 +1495,13 @@ export default function App() {
                       <div className="trade-asset-summary">
                         <div>
                           <p className="eyebrow">Selected Stock</p>
-                          <h3>{activeAssetDisplayName}</h3>
+                          <AssetTitle
+                            asset={activeAsset}
+                            sessionUserId={sessionUserId}
+                            sessionUsername={sessionUsername}
+                            className="trade-asset-title"
+                            heading="h3"
+                          />
                           <p className="helper-copy">Issuer: {activeAssetIssuerName}</p>
                         </div>
 
@@ -1195,7 +1530,6 @@ export default function App() {
                           type="button"
                           className={orderSide === "BUY" ? "active" : ""}
                           onClick={() => setOrderSide("BUY")}
-                          disabled={isActiveAssetIssuedByUser}
                         >
                           Buy
                         </button>
@@ -1236,12 +1570,6 @@ export default function App() {
                           <p className="helper-copy">
                             Estimated order value: {formatCurrency(estimatedOrderValueCents)}
                           </p>
-                        ) : null}
-
-                        {orderSide === "BUY" && isActiveAssetIssuedByUser ? (
-                          <div className="helper-banner">
-                            Buying your own stock is blocked, but you can place sell orders for shares you hold.
-                          </div>
                         ) : null}
 
                         {orderSide === "BUY" && hasInsufficientCash ? (
@@ -1322,6 +1650,43 @@ export default function App() {
           </>
         )}
       </main>
+
+      {isDeleteProfileDialogOpen ? (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseDeleteProfileDialog();
+            }
+          }}
+        >
+          <section
+            className="dialog-card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-profile-title"
+            aria-describedby="delete-profile-description"
+          >
+            <div className="dialog-copy">
+              <p className="eyebrow">Are you sure?</p>
+              <h2 id="delete-profile-title">Delete your profile?</h2>
+              <p id="delete-profile-description" className="panel-copy">
+                This permanently deletes your account, profile, and connected trading data. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="dialog-actions">
+              <button className="ghost-button" type="button" onClick={handleCloseDeleteProfileDialog} disabled={isDeletingProfile}>
+                Cancel
+              </button>
+              <button className="auth-submit-button profile-delete-confirm-button" type="button" onClick={handleDeleteProfile} disabled={isDeletingProfile}>
+                {isDeletingProfile ? "Deleting..." : "Yes, Delete Profile"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

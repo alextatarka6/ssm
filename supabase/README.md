@@ -17,3 +17,5 @@ That will apply both the base portfolio schema and the follow-up backfill migrat
 If you prefer the dashboard SQL editor, run each migration file there in order.
 
 For testing, `reset_market_state.sql` clears market activity in `public.trades`, `public.orders`, `public.events`, `public.holdings`, `public.assets`, and `public.user_accounts`, then reruns `public.ensure_initial_market_state_for_user(...)` for every row in `public.profiles`. It preserves `auth.users` and `public.profiles`, so the same users can sign back in after the reset.
+
+If you want chart-ready fake activity, run `seed_fake_market_chart_data.sql` after your users exist. It rebuilds the public market tables from `public.profiles`, gives each user cash plus cross-holdings, and inserts deterministic order/trade history for every issued asset so the frontend candle chart has data immediately.
