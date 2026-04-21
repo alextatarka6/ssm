@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import { getFrontendConfig, getFrontendConfigError } from "../config";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const { supabaseUrl, supabasePublishableKey } = getFrontendConfig();
+const configError = getFrontendConfigError();
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = configError
+  ? null
+  : createClient(supabaseUrl, supabasePublishableKey);

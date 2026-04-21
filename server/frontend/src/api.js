@@ -1,8 +1,14 @@
 import { supabase } from "./utils/supabase";
+import { getFrontendConfig, getFrontendConfigError } from "./config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+const { apiBaseUrl } = getFrontendConfig();
+const configError = getFrontendConfigError();
 
 async function fetchJson(path, options = {}) {
+  if (configError) {
+    throw new Error(configError);
+  }
+
   const headers = {
     ...(options.headers || {}),
   };
@@ -11,7 +17,7 @@ async function fetchJson(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     headers,
     ...options,
   });
@@ -48,6 +54,10 @@ export function getUserPortfolio(userId) {
 }
 
 export async function getUserAccountBalances(userId) {
+  if (!supabase) {
+    throw new Error(configError || "Supabase is not configured for this deployment.");
+  }
+
   const { data, error } = await supabase
     .from("user_accounts")
     .select("cash_cents, reserved_cash_cents")

@@ -10,6 +10,7 @@ import {
   updateAsset,
 } from "./api";
 import StockChart from "./components/StockChart";
+import { getFrontendConfigError } from "./config";
 import { supabase } from "./utils/supabase";
 
 const ALLOWED_EMAIL_DOMAIN = "@nd.edu";
@@ -207,6 +208,7 @@ function RibbonLabel({ as: Tag = "div", text, textAs: TextTag = "span", classNam
 }
 
 export default function App() {
+  const frontendConfigError = getFrontendConfigError();
   const [authMode, setAuthMode] = useState("register");
   const [currentView, setCurrentView] = useState("dashboard");
   const [email, setEmail] = useState("");
@@ -427,6 +429,11 @@ export default function App() {
   async function handleAuthSubmit(event) {
     event.preventDefault();
 
+    if (!supabase) {
+      setAuthError(frontendConfigError || "Authentication is not configured for this deployment.");
+      return;
+    }
+
     const trimmedEmail = normalizeEmail(email);
     const trimmedUsername = username.trim();
 
@@ -495,6 +502,11 @@ export default function App() {
   }
 
   async function handleResendVerification() {
+    if (!supabase) {
+      setAuthError(frontendConfigError || "Authentication is not configured for this deployment.");
+      return;
+    }
+
     const trimmedEmail = normalizeEmail(email);
     if (!trimmedEmail) {
       setAuthError("Enter your email first so we know where to resend the verification link.");
@@ -534,6 +546,11 @@ export default function App() {
   }
 
   async function handleLogout() {
+    if (!supabase) {
+      setAuthError(frontendConfigError || "Authentication is not configured for this deployment.");
+      return;
+    }
+
     try {
       setIsAuthenticating(true);
       setAuthError(null);
@@ -627,6 +644,10 @@ export default function App() {
   }
 
   async function uploadProfileAvatar(userId, file) {
+    if (!supabase) {
+      throw new Error(frontendConfigError || "Authentication is not configured for this deployment.");
+    }
+
     const sanitizedExtension = (file.name.split(".").pop() || "png").replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
     const storagePath = `${userId}/avatar.${sanitizedExtension}`;
     const { error: uploadError } = await supabase.storage.from("profile-pictures").upload(storagePath, file, { upsert: true });
@@ -644,6 +665,11 @@ export default function App() {
 
   async function handleProfileSubmit(event) {
     event.preventDefault();
+
+    if (!supabase) {
+      setProfileError(frontendConfigError || "Authentication is not configured for this deployment.");
+      return;
+    }
 
     if (!sessionUserId) {
       setProfileError("You need to be signed in to update your profile.");
@@ -756,6 +782,12 @@ export default function App() {
   }
 
   async function handleDeleteProfile() {
+    if (!supabase) {
+      setProfileError(frontendConfigError || "Authentication is not configured for this deployment.");
+      setIsDeleteProfileDialogOpen(false);
+      return;
+    }
+
     if (!sessionUserId) {
       setProfileError("You need to be signed in to delete your profile.");
       setIsDeleteProfileDialogOpen(false);
@@ -886,6 +918,13 @@ export default function App() {
     let isMounted = true;
 
     async function initializeAuth() {
+      if (!supabase) {
+        resetDashboardState();
+        setAuthError(frontendConfigError || "Authentication is not configured for this deployment.");
+        setIsAuthReady(true);
+        return;
+      }
+
       try {
         const {
           data: { session },
@@ -1195,7 +1234,7 @@ export default function App() {
                   type="button"
                   className="ghost-button auth-secondary-action"
                   onClick={handleResendVerification}
-                  disabled={isResendingVerification || isAuthenticating}
+                  disabled={isResendingVerification || isAuthenticating || !supabase}
                 >
                   {isResendingVerification ? "Sending verification..." : "Resend verification email"}
                 </button>
