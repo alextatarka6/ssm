@@ -1,0 +1,13 @@
+# Exclude heavyweight directories — EB installs dependencies on the instance.
+node_modules/
+frontend/node_modules/
+
+# Local data snapshots are replaced by PostgreSQL in production.
+data/
+
+# Local environment overrides — set these in the EB environment configuration.
+.env
+frontend/.env
+
+# Development artifacts
+*.log

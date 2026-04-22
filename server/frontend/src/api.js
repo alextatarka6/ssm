@@ -1,7 +1,6 @@
-import { supabase } from "./utils/supabase";
 import { getFrontendConfig, getFrontendConfigError } from "./config";
 
-const { apiBaseUrl } = getFrontendConfig();
+const { apiBaseUrl, apiKey } = getFrontendConfig();
 const configError = getFrontendConfigError();
 
 async function fetchJson(path, options = {}) {
@@ -15,6 +14,10 @@ async function fetchJson(path, options = {}) {
 
   if (options.body && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
+  }
+
+  if (apiKey && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -54,21 +57,7 @@ export function getUserPortfolio(userId) {
 }
 
 export async function getUserAccountBalances(userId) {
-  if (!supabase) {
-    throw new Error(configError || "Supabase is not configured for this deployment.");
-  }
-
-  const { data, error } = await supabase
-    .from("user_accounts")
-    .select("cash_cents, reserved_cash_cents")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
+  return fetchJson(`/users/${encodeURIComponent(userId)}/balance`);
 }
 
 export function getAssets() {

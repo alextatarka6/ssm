@@ -6,6 +6,8 @@ dist/
 .env
 .env.local
 .env.*.local
+data/*.json
+server/data/*.json
 *.db
 server/backend/local.db
 .codex
@@ -18,3 +20,6 @@ supabase/seed_fake_market_chart_data.sql
 assets/
 Makefile
 Funkydori-Bold
+
+ssm-app.zip
+server/schema.sql

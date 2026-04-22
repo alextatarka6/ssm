@@ -37,6 +37,7 @@ function normalizeAbsoluteUrl(value) {
 
 const frontendConfig = {
   apiBaseUrl: normalizeApiBaseUrl(readClientEnv("VITE_API_BASE_URL")),
+  apiKey: readClientEnv("VITE_API_KEY"),
   supabaseUrl: normalizeAbsoluteUrl(readClientEnv("VITE_SUPABASE_URL")),
   supabasePublishableKey: readClientEnv("VITE_SUPABASE_PUBLISHABLE_KEY"),
 };
