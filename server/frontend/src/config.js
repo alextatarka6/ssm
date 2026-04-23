@@ -35,8 +35,17 @@ function normalizeAbsoluteUrl(value) {
   }
 }
 
+function resolveApiBaseUrl() {
+  const backendUrl = readClientEnv("VITE_BACKEND_URL");
+  if (backendUrl) {
+    const normalized = normalizeAbsoluteUrl(backendUrl);
+    return normalized ? normalized.replace(/\/+$/, "") + "/api" : "";
+  }
+  return normalizeApiBaseUrl(readClientEnv("VITE_API_BASE_URL"));
+}
+
 const frontendConfig = {
-  apiBaseUrl: normalizeApiBaseUrl(readClientEnv("VITE_API_BASE_URL")),
+  apiBaseUrl: resolveApiBaseUrl(),
   apiKey: readClientEnv("VITE_API_KEY"),
   supabaseUrl: normalizeAbsoluteUrl(readClientEnv("VITE_SUPABASE_URL")),
   supabasePublishableKey: readClientEnv("VITE_SUPABASE_PUBLISHABLE_KEY"),
@@ -45,10 +54,10 @@ const frontendConfig = {
 const missingConfigFields = [];
 const invalidConfigFields = [];
 
-if (!readClientEnv("VITE_API_BASE_URL")) {
-  missingConfigFields.push("VITE_API_BASE_URL");
+if (!readClientEnv("VITE_BACKEND_URL") && !readClientEnv("VITE_API_BASE_URL")) {
+  missingConfigFields.push("VITE_BACKEND_URL");
 } else if (!frontendConfig.apiBaseUrl) {
-  invalidConfigFields.push("VITE_API_BASE_URL");
+  invalidConfigFields.push(readClientEnv("VITE_BACKEND_URL") ? "VITE_BACKEND_URL" : "VITE_API_BASE_URL");
 }
 
 if (!readClientEnv("VITE_SUPABASE_URL")) {

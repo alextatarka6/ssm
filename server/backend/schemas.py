@@ -11,6 +11,8 @@ class Side(str, Enum):
 
 class UserCreate(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
+    username: Optional[str] = None
+    email: Optional[str] = None
     initial_cash_cents: Annotated[int, Field(ge=0)] = 500_000
 
 

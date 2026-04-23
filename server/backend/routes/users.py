@@ -94,17 +94,29 @@ def create_user(payload: UserCreate, request: Request) -> dict:
             with conn.transaction():
                 cur = conn.cursor()
                 try:
+                    # Derive a username fallback using the same logic as the Supabase trigger
+                    username = payload.username
+                    if not username:
+                        username = (
+                            payload.email.split("@")[0]
+                            if payload.email
+                            else payload.user_id.replace("-", "")[:8]
+                        )
+
                     cur.execute(
                         """
-                        select deleted_at
-                        from public.profiles
-                        where id = %s::uuid
-                        limit 1
+                        insert into public.profiles (id, username, email)
+                        values (%s::uuid, %s, %s)
+                        on conflict (id) do update
+                          set username   = case when public.profiles.deleted_at is null then excluded.username   else public.profiles.username end,
+                              email      = case when public.profiles.deleted_at is null then excluded.email      else public.profiles.email    end,
+                              updated_at = timezone('utc', now())
+                        returning deleted_at
                         """,
-                        (payload.user_id,),
+                        (payload.user_id, username, payload.email),
                     )
-                    profile_row = cur.fetchone()
-                    if profile_row is not None and profile_row[0] is not None:
+                    row = cur.fetchone()
+                    if row is not None and row[0] is not None:
                         raise HTTPException(status_code=410, detail="This profile has been deleted.")
 
                     cur.execute("SELECT public.ensure_initial_market_state_for_user(%s::uuid)", (payload.user_id,))

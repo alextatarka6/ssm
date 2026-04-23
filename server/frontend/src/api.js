@@ -75,11 +75,13 @@ export function placeOrder(order) {
   });
 }
 
-export function createUser(userId, initialCashCents = 500000) {
+export function createUser(userId, { username, email, initialCashCents = 500000 } = {}) {
   return fetchJson("/users/", {
     method: "POST",
     body: JSON.stringify({
       user_id: userId,
+      username: username ?? undefined,
+      email: email ?? undefined,
       initial_cash_cents: initialCashCents,
     }),
   });

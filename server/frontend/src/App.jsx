@@ -391,7 +391,7 @@ export default function App() {
       setSessionUserId(nextUserId);
     } catch (err) {
       if (options.createIfMissing && err.status === 404) {
-        await createUser(nextUserId);
+        await createUser(nextUserId, { username: options.username, email: options.email });
         await loadDashboard(nextUserId, { createIfMissing: false });
         return;
       }
@@ -417,7 +417,7 @@ export default function App() {
       setSessionUsername(nextUsername);
       setSessionEmail(user.email || null);
       setSessionAvatarUrl(getAvatarUrlFromUser(user));
-      await loadDashboard(authUserId, { createIfMissing: true });
+      await loadDashboard(authUserId, { createIfMissing: true, username: nextUsername, email: user.email ?? null });
     } catch (err) {
       resetDashboardState();
       setAuthError(err.message || "Unable to load your dashboard.");
