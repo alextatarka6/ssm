@@ -960,6 +960,10 @@ export default function App() {
 
     initializeAuth();
 
+    if (!supabase) {
+      return () => { isMounted = false; };
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
