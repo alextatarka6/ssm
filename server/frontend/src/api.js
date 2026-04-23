@@ -29,15 +29,19 @@ async function fetchJson(path, options = {}) {
     let message = `${response.status} ${response.statusText}`;
 
     try {
-      const body = await response.json();
-      if (body?.detail) {
-        message = body.detail;
+      const text = await response.text();
+      if (text) {
+        try {
+          const body = JSON.parse(text);
+          if (body?.detail) {
+            message = body.detail;
+          }
+        } catch {
+          message = text;
+        }
       }
     } catch {
-      const body = await response.text();
-      if (body) {
-        message = body;
-      }
+      // ignore — keep the default status message
     }
 
     const error = new Error(message);
