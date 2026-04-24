@@ -27,4 +27,6 @@ module.exports = {
     ? path.resolve(process.cwd(), process.env.DATA_FILE)
     : path.resolve(__dirname, "..", "..", "data", "market-state.json"),
   corsAllowedOrigins: parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
+  supabaseUrl: process.env.SUPABASE_URL || "",
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY || "",
 };

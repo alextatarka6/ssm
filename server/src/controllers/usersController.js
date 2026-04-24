@@ -1,4 +1,5 @@
 const marketService = require("../services/marketService");
+const { getSupabaseAdmin } = require("../utils/supabaseAdmin");
 
 async function createUser(req, res) {
   const user = await marketService.mutate((market) =>
@@ -27,11 +28,20 @@ function getPortfolio(req, res) {
   res.json(marketService.getMarket().getPortfolio(req.validated.params.userId));
 }
 
-function deleteCurrentUser(_req, res) {
-  res.status(501).json({
-    detail:
-      "Profile deletion is not implemented in this Node backend because it requires an external identity-backed data store.",
-  });
+async function deleteCurrentUser(req, res) {
+  const userId = req.supabaseUser.id;
+
+  await marketService.mutate((market) => market.deleteUser(userId));
+
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      throw error;
+    }
+  }
+
+  res.status(204).end();
 }
 
 module.exports = {

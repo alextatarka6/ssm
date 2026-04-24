@@ -139,6 +139,35 @@ https://your-backend.example.com/api
 
 Amplify build settings are defined in [amplify.yml](/home/inferno/projects/ssm/amplify.yml). For the full deployment checklist, including the SPA rewrite rule, see [DEPLOY_AMPLIFY.md](/home/inferno/projects/ssm/DEPLOY_AMPLIFY.md).
 
+## EC2 Backend Deployment (ssmEC2)
+
+The backend runs on an AWS EC2 instance (`ssmEC2`) in `us-east-2` (Ohio).
+
+- **Instance:** ssmEC2
+- **Host:** `ec2-18-221-139-100.us-east-2.compute.amazonaws.com`
+- **Region:** us-east-2
+- **Key pair:** `alex-dev-laptop.pem` (gitignored — keep this file secure)
+
+### SSH Access
+
+```bash
+ssh -i "alex-dev-laptop.pem" ubuntu@ec2-18-221-139-100.us-east-2.compute.amazonaws.com
+```
+
+If you get a permissions error on the key file, fix it first:
+
+```bash
+chmod 400 alex-dev-laptop.pem
+```
+
+### Copy Files to the Instance (SCP)
+
+```bash
+scp -i alex-dev-laptop.pem <local-file> ubuntu@ec2-18-221-139-100.us-east-2.compute.amazonaws.com:/home/ubuntu
+```
+
+For full connection details, prerequisites, and common commands see `EC2_ACCESS.txt` (gitignored).
+
 ## Running Tests
 
 Backend tests:

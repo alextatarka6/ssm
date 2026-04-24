@@ -96,7 +96,7 @@ class Market {
     };
   }
 
-  createUser({ userId, initialCashCents = 500000 }) {
+  createUser({ userId, initialCashCents = 500000, username }) {
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
 
     if (this.users.has(normalizedUserId)) {
@@ -116,6 +116,17 @@ class Market {
       userId: normalizedUserId,
       cashCents: initialCashCents,
     });
+
+    if (normalizedUserId !== TREASURY_USER) {
+      const assetId = this._slugify(username || normalizedUserId);
+      if (assetId && !this.stocks.has(assetId)) {
+        try {
+          this.createPersonAsset({ issuerUserId: normalizedUserId, assetId, name: "Stock" });
+        } catch {
+          // Skip if issuance fails (e.g. asset_id collision)
+        }
+      }
+    }
 
     return this.serializeUser(user);
   }
@@ -183,6 +194,9 @@ class Market {
     this._getHolding(normalizedIssuerId, stock.assetId).shares += issuerShares;
     this._getHolding(TREASURY_USER, stock.assetId).shares += treasuryShares;
 
+    // Grant treasury cash so it can quote both sides of the market from day one
+    this.users.get(TREASURY_USER).cashCents += treasuryShares * 1000;
+
     this._emit(EventType.ASSET_CREATED, {
       assetId: stock.assetId,
       issuerUserId: stock.issuerUserId,
@@ -211,6 +225,8 @@ class Market {
         reason: "ISSUANCE",
       });
     }
+
+    this._rebalanceTreasuryOrders(stock.assetId);
 
     return this.serializeAsset(stock);
   }
@@ -312,6 +328,10 @@ class Market {
 
     this.orders.set(order.id, order);
 
+    if (trades.length > 0) {
+      this._rebalanceTreasuryOrders(normalizedAssetId);
+    }
+
     return {
       order: this.serializeOrder(order),
       trades: trades.map((trade) => this.serializeTrade(trade)),
@@ -401,11 +421,14 @@ class Market {
 
     const prices = trades.map((trade) => trade.price_cents / 100);
     const bars = [];
+    const barCount = Math.ceil(prices.length / intervalTrades);
+    const nowSec = Math.floor(Date.now() / 1000);
 
     for (let index = 0; index < prices.length; index += intervalTrades) {
+      const barIndex = index / intervalTrades;
       const window = prices.slice(index, index + intervalTrades);
       bars.push({
-        time: index / intervalTrades,
+        time: nowSec - (barCount - 1 - barIndex) * 60,
         open: window[0],
         high: Math.max(...window),
         low: Math.min(...window),
@@ -436,6 +459,33 @@ class Market {
         };
       }),
     };
+  }
+
+  deleteUser(userId) {
+    const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
+
+    if (!this.users.has(normalizedUserId)) {
+      throw new NotFoundError(`Unknown user: ${normalizedUserId}`);
+    }
+
+    for (const order of this.orders.values()) {
+      if (
+        order.userId === normalizedUserId &&
+        [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status) &&
+        order.remainingQty > 0
+      ) {
+        order.status = OrderStatus.CANCELED;
+        this._releaseRemainingReserve(order);
+      }
+    }
+
+    for (const [key, holding] of this.holdings.entries()) {
+      if (holding.userId === normalizedUserId) {
+        this.holdings.delete(key);
+      }
+    }
+
+    this.users.delete(normalizedUserId);
   }
 
   getPortfolio(userId) {
@@ -513,6 +563,68 @@ class Market {
       seller_id: trade.sellerId,
       ts_seq: trade.tsSeq,
     };
+  }
+
+  _rebalanceTreasuryOrders(assetId) {
+    // Cancel all open treasury orders for this asset
+    for (const order of this.orders.values()) {
+      if (
+        order.userId === TREASURY_USER &&
+        order.assetId === assetId &&
+        [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status) &&
+        order.remainingQty > 0
+      ) {
+        order.status = OrderStatus.CANCELED;
+        this._releaseRemainingReserve(order);
+      }
+    }
+
+    const lastPrice = this.lastPriceCents.get(assetId);
+    if (!lastPrice) return;
+
+    const treasury = this.users.get(TREASURY_USER);
+    if (!treasury) return;
+
+    const holding = this._getHolding(TREASURY_USER, assetId);
+    const availableShares = holding.shares - holding.reservedShares;
+    const availableCash = treasury.cashCents - treasury.reservedCashCents;
+
+    const sellPrice = Math.max(1, Math.round(lastPrice * 1.05));
+    const buyPrice = Math.max(1, Math.round(lastPrice * 0.95));
+
+    if (availableShares > 0) {
+      const qty = Math.max(1, Math.floor(availableShares * 0.1));
+      this._placeTreasuryOrder(assetId, Side.SELL, qty, sellPrice);
+    }
+
+    if (availableCash >= buyPrice) {
+      const maxQty = Math.floor(availableCash / buyPrice);
+      const qty = Math.max(1, Math.floor(maxQty * 0.1));
+      this._placeTreasuryOrder(assetId, Side.BUY, qty, buyPrice);
+    }
+  }
+
+  _placeTreasuryOrder(assetId, side, qty, limitPriceCents) {
+    const order = new Order({
+      id: this.generators.nextOrderId++,
+      userId: TREASURY_USER,
+      assetId,
+      side,
+      qty,
+      remainingQty: qty,
+      limitPriceCents,
+      status: OrderStatus.OPEN,
+      seq: this._nextSeq(),
+    });
+
+    try {
+      this._reserveForOrder(order);
+    } catch {
+      // Treasury lacks the funds or shares for this order; skip it
+      return;
+    }
+
+    this.orders.set(order.id, order);
   }
 
   _match(incoming) {
@@ -759,6 +871,14 @@ class Market {
       throw new ValidationError(`${field} must be a positive integer.`);
     }
     return parsed;
+  }
+
+  _slugify(value) {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30) || null;
   }
 
   _holdingKey(userId, assetId) {

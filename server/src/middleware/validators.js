@@ -49,6 +49,10 @@ function validateCreateUser(req, _res, next) {
         req.body.initial_cash_cents === undefined
           ? 500000
           : requireNonNegativeInteger(req.body.initial_cash_cents, "initial_cash_cents"),
+      username:
+        typeof req.body.username === "string" && req.body.username.trim()
+          ? req.body.username.trim()
+          : undefined,
     };
     next();
   } catch (error) {

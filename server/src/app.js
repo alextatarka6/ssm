@@ -6,6 +6,9 @@ const morgan = require("morgan");
 const { corsAllowedOrigins } = require("./config");
 const routes = require("./routes");
 const requireApiKey = require("./middleware/requireApiKey");
+const requireSupabaseAuth = require("./middleware/requireSupabaseAuth");
+const { deleteCurrentUser } = require("./controllers/usersController");
+const asyncHandler = require("./utils/asyncHandler");
 const notFoundHandler = require("./middleware/notFoundHandler");
 const errorHandler = require("./middleware/errorHandler");
 const marketService = require("./services/marketService");
@@ -46,6 +49,9 @@ app.get("/health", async (_req, res) => {
     res.status(503).json({ ok: false, detail: "Storage unavailable." });
   }
 });
+
+// Registered before requireApiKey — accepts a Supabase JWT rather than the API key.
+app.delete("/api/users/me", requireSupabaseAuth, asyncHandler(deleteCurrentUser));
 
 app.use("/api", requireApiKey, routes);
 
