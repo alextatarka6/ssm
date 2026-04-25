@@ -101,9 +101,9 @@ class Market {
 
     if (this.users.has(normalizedUserId)) {
       const existingUser = this.users.get(normalizedUserId);
-      existingUser.cashCents = initialCashCents;
       if (username) existingUser.username = username;
       if (avatarUrl) existingUser.avatarUrl = avatarUrl;
+      this._ensurePersonAsset(existingUser);
       return this.serializeUser(existingUser);
     }
 
@@ -122,14 +122,7 @@ class Market {
     });
 
     if (normalizedUserId !== TREASURY_USER) {
-      const assetId = this._slugify(username || normalizedUserId);
-      if (assetId && !this.stocks.has(assetId)) {
-        try {
-          this.createPersonAsset({ issuerUserId: normalizedUserId, assetId, name: "Stock" });
-        } catch {
-          // Skip if issuance fails (e.g. asset_id collision)
-        }
-      }
+      this._ensurePersonAsset(user);
     }
 
     return this.serializeUser(user);
@@ -855,6 +848,19 @@ class Market {
       );
     }
     return this.holdings.get(key);
+  }
+
+  _ensurePersonAsset(user) {
+    if (user.userId === TREASURY_USER) return;
+    const alreadyHasStock = [...this.stocks.values()].some((s) => s.issuerUserId === user.userId);
+    if (alreadyHasStock) return;
+    const assetId = this._slugify(user.username || user.userId);
+    if (!assetId || this.stocks.has(assetId)) return;
+    try {
+      this.createPersonAsset({ issuerUserId: user.userId, assetId, name: "Stock" });
+    } catch {
+      // skip on collision
+    }
   }
 
   _requireUser(userId) {
