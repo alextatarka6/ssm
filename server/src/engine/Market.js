@@ -539,6 +539,32 @@ class Market {
     };
   }
 
+  getLeaderboard() {
+    let topCash = null;
+    let topNetWorth = null;
+
+    for (const user of this.users.values()) {
+      if (user.userId === TREASURY_USER) continue;
+
+      const cashCents = user.cashCents;
+      let netWorthCents = cashCents;
+
+      for (const holding of this.holdings.values()) {
+        if (holding.userId !== user.userId) continue;
+        netWorthCents += (this.lastPriceCents.get(holding.assetId) || 0) * holding.shares;
+      }
+
+      if (!topCash || cashCents > topCash.cash_cents) {
+        topCash = { user_id: user.userId, username: user.username || user.userId, cash_cents: cashCents };
+      }
+      if (!topNetWorth || netWorthCents > topNetWorth.net_worth_cents) {
+        topNetWorth = { user_id: user.userId, username: user.username || user.userId, net_worth_cents: netWorthCents };
+      }
+    }
+
+    return { top_cash: topCash, top_net_worth: topNetWorth };
+  }
+
   getUserOrders(userId) {
     const user = this._requireUser(userId);
     const orders = [];

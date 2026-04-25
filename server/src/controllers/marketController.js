@@ -25,9 +25,14 @@ function getOrderBook(req, res) {
   res.json(marketService.getMarket().getOrderBook(req.validated.params.assetId));
 }
 
+function getLeaderboard(_req, res) {
+  res.json(marketService.getMarket().getLeaderboard());
+}
+
 module.exports = {
   buyStock,
   sellStock,
   processOrders,
   getOrderBook,
+  getLeaderboard,
 };

@@ -14,5 +14,6 @@ router.post("/buy", validateMarketTradePayload(Side.BUY), asyncHandler(controlle
 router.post("/sell", validateMarketTradePayload(Side.SELL), asyncHandler(controller.sellStock));
 router.post("/process-orders", asyncHandler(controller.processOrders));
 router.get("/order-book/:assetId", validateAssetIdParam, controller.getOrderBook);
+router.get("/leaderboard", controller.getLeaderboard);
 
 module.exports = router;

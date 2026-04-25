@@ -5,6 +5,7 @@ import {
   deleteCurrentProfile,
   getAssetCandles,
   getAssets,
+  getLeaderboard,
   getUserAccountBalances,
   getUserOrders,
   getUserPortfolio,
@@ -226,6 +227,7 @@ export default function App() {
   const [sessionAvatarUrl, setSessionAvatarUrl] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [assets, setAssets] = useState([]);
+  const [leaderboard, setLeaderboard] = useState(null);
   const [activeAssetId, setActiveAssetId] = useState(null);
   const [candles, setCandles] = useState(null);
   const [authError, setAuthError] = useState(null);
@@ -398,11 +400,12 @@ export default function App() {
 
     const preferredAssetId = options.preferredAssetId ?? activeAssetId;
 
-    const [portfolioResult, assetsResult, accountBalances, ordersResult] = await Promise.all([
+    const [portfolioResult, assetsResult, accountBalances, ordersResult, leaderboardResult] = await Promise.all([
       getUserPortfolio(nextUserId),
       getAssets(),
       getUserAccountBalances(nextUserId).catch(() => null),
       getUserOrders(nextUserId).catch(() => null),
+      getLeaderboard().catch(() => null),
     ]);
 
     const preferredAssetExists =
@@ -418,6 +421,7 @@ export default function App() {
     });
     setAssets(assetsResult);
     setUserOrders(ordersResult?.orders ?? []);
+    setLeaderboard(leaderboardResult);
 
     const userIssuedAssetId =
       assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
@@ -1740,14 +1744,26 @@ export default function App() {
                     Other stocks available in the system, including ones this user does not own.
                   </p>
                 </div>
-                <input
-                  className="market-search-input"
-                  type="search"
-                  placeholder="Search by username"
-                  value={marketSearch}
-                  onChange={(event) => setMarketSearch(event.target.value)}
-                  aria-label="Search market by username"
-                />
+                <div className="market-panel-controls">
+                  <div className="leaderboard-stats">
+                    <div className="leaderboard-stat">
+                      <span>Top Cash</span>
+                      <strong>{leaderboard?.top_cash ? `${leaderboard.top_cash.username} — ${formatCurrency(leaderboard.top_cash.cash_cents)}` : "—"}</strong>
+                    </div>
+                    <div className="leaderboard-stat">
+                      <span>Top Net Worth</span>
+                      <strong>{leaderboard?.top_net_worth ? `${leaderboard.top_net_worth.username} — ${formatCurrency(leaderboard.top_net_worth.net_worth_cents)}` : "—"}</strong>
+                    </div>
+                  </div>
+                  <input
+                    className="market-search-input"
+                    type="search"
+                    placeholder="Search by username"
+                    value={marketSearch}
+                    onChange={(event) => setMarketSearch(event.target.value)}
+                    aria-label="Search market by username"
+                  />
+                </div>
               </div>
 
               <div className="positions">

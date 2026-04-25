@@ -68,6 +68,10 @@ export function getAssets() {
   return fetchJson("/assets");
 }
 
+export function getLeaderboard() {
+  return fetchJson("/market/leaderboard");
+}
+
 export function getAssetCandles(assetId) {
   return fetchJson(`/assets/${encodeURIComponent(assetId)}/candles?interval_trades=5&limit=50`);
 }
