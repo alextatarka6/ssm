@@ -96,12 +96,14 @@ class Market {
     };
   }
 
-  createUser({ userId, initialCashCents = 500000, username }) {
+  createUser({ userId, initialCashCents = 500000, username, avatarUrl }) {
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
 
     if (this.users.has(normalizedUserId)) {
       const existingUser = this.users.get(normalizedUserId);
       existingUser.cashCents = initialCashCents;
+      if (username) existingUser.username = username;
+      if (avatarUrl) existingUser.avatarUrl = avatarUrl;
       return this.serializeUser(existingUser);
     }
 
@@ -109,6 +111,8 @@ class Market {
       userId: normalizedUserId,
       cashCents: initialCashCents,
       reservedCashCents: 0,
+      username: username || null,
+      avatarUrl: avatarUrl || null,
     });
 
     this.users.set(normalizedUserId, user);
@@ -516,20 +520,33 @@ class Market {
     };
   }
 
+  updateUser(userId, { username, avatarUrl }) {
+    const user = this._requireUser(userId);
+    if (username !== undefined) {
+      user.username = typeof username === "string" && username.trim() ? username.trim() : null;
+    }
+    if (avatarUrl !== undefined) {
+      user.avatarUrl = typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null;
+    }
+    return this.serializeUser(user);
+  }
+
   serializeUser(user) {
     return {
       user_id: user.userId,
       cash_cents: user.cashCents,
       reserved_cash_cents: user.reservedCashCents,
+      username: user.username || null,
     };
   }
 
   serializeAsset(stock) {
+    const issuer = this.users.get(stock.issuerUserId);
     return {
       asset_id: stock.assetId,
       issuer_user_id: stock.issuerUserId,
-      issuer_username: null,
-      issuer_avatar_url: null,
+      issuer_username: issuer?.username || null,
+      issuer_avatar_url: issuer?.avatarUrl || null,
       total_supply: stock.totalSupply,
       name: stock.name,
       last_price_cents: this.lastPriceCents.get(stock.assetId) || null,

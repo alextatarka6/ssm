@@ -8,6 +8,7 @@ import {
   getUserPortfolio,
   placeOrder,
   updateAsset,
+  updateUser,
 } from "./api";
 import StockChart from "./components/StockChart";
 import { getFrontendConfigError } from "./config";
@@ -182,14 +183,16 @@ function AvatarBadge({ imageUrl, label, className = "" }) {
   );
 }
 
-function AssetTitle({ asset, sessionUserId, sessionUsername, className = "", heading = "span" }) {
+function AssetTitle({ asset, sessionUserId, sessionUsername, sessionAvatarUrl, className = "", heading = "span" }) {
   const HeadingTag = heading;
   const issuerName = getAssetIssuerName(asset, { sessionUserId, sessionUsername }) || "User";
   const titleClassName = ["asset-title", className].filter(Boolean).join(" ");
+  const isCurrentUser = sessionUserId && asset?.issuer_user_id === sessionUserId;
+  const avatarUrl = asset?.issuer_avatar_url || (isCurrentUser ? sessionAvatarUrl : null) || null;
 
   return (
     <div className={titleClassName}>
-      <AvatarBadge imageUrl={asset?.issuer_avatar_url || null} label={issuerName} className="asset-title-avatar" />
+      <AvatarBadge imageUrl={avatarUrl} label={issuerName} className="asset-title-avatar" />
       <HeadingTag className="asset-title-text">
         {formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}
       </HeadingTag>
@@ -391,7 +394,7 @@ export default function App() {
       setSessionUserId(nextUserId);
     } catch (err) {
       if (options.createIfMissing && err.status === 404) {
-        await createUser(nextUserId, { username: options.username, email: options.email });
+        await createUser(nextUserId, { username: options.username, email: options.email, avatarUrl: options.avatarUrl });
         await loadDashboard(nextUserId, { createIfMissing: false });
         return;
       }
@@ -417,7 +420,7 @@ export default function App() {
       setSessionUsername(nextUsername);
       setSessionEmail(user.email || null);
       setSessionAvatarUrl(getAvatarUrlFromUser(user));
-      await loadDashboard(authUserId, { createIfMissing: true, username: nextUsername, email: user.email ?? null });
+      await loadDashboard(authUserId, { createIfMissing: true, username: nextUsername, email: user.email ?? null, avatarUrl: getAvatarUrlFromUser(user) });
     } catch (err) {
       resetDashboardState();
       setAuthError(err.message || "Unable to load your dashboard.");
@@ -748,6 +751,8 @@ export default function App() {
           if (profileUpdateError) {
             throw profileUpdateError;
           }
+
+          await updateUser(sessionUserId, { username: trimmedProfileUsername, avatarUrl: nextAvatarUrl });
         }
 
         const updatedUser = data.user;
@@ -1419,6 +1424,7 @@ export default function App() {
                       asset={issuedAsset}
                       sessionUserId={sessionUserId}
                       sessionUsername={sessionUsername}
+                      sessionAvatarUrl={sessionAvatarUrl}
                       className="profile-issued-stock-title"
                       heading="strong"
                     />
@@ -1503,6 +1509,7 @@ export default function App() {
                         asset={activeAsset}
                         sessionUserId={sessionUserId}
                         sessionUsername={sessionUsername}
+                        sessionAvatarUrl={sessionAvatarUrl}
                         className="panel-asset-title"
                         heading="h2"
                       />
@@ -1542,6 +1549,7 @@ export default function App() {
                             asset={activeAsset}
                             sessionUserId={sessionUserId}
                             sessionUsername={sessionUsername}
+                            sessionAvatarUrl={sessionAvatarUrl}
                             className="trade-asset-title"
                             heading="h3"
                           />

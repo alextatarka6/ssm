@@ -145,6 +145,31 @@ function validateMarketTradePayload(side) {
   };
 }
 
+function validateUpdateUser(req, _res, next) {
+  try {
+    const validated = cloneValidated(req);
+    validated.params = {
+      userId: requireTrimmedString(req.params.userId, "user_id"),
+    };
+    validated.body = {};
+    if (req.body.username !== undefined) {
+      validated.body.username =
+        typeof req.body.username === "string" && req.body.username.trim()
+          ? req.body.username.trim()
+          : null;
+    }
+    if (req.body.avatar_url !== undefined) {
+      validated.body.avatarUrl =
+        typeof req.body.avatar_url === "string" && req.body.avatar_url.trim()
+          ? req.body.avatar_url.trim()
+          : null;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 function validateUserIdParam(req, _res, next) {
   try {
     const validated = cloneValidated(req);
@@ -234,6 +259,7 @@ function validateCandlesQuery(req, _res, next) {
 
 module.exports = {
   validateCreateUser,
+  validateUpdateUser,
   validateCreateAsset,
   validateUpdateAsset,
   validateOrderPayload,

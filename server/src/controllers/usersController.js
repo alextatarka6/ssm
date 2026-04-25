@@ -1,5 +1,6 @@
 const marketService = require("../services/marketService");
 const { getSupabaseAdmin } = require("../utils/supabaseAdmin");
+const { ApiError } = require("../utils/errors");
 
 async function createUser(req, res) {
   const user = await marketService.mutate((market) =>
@@ -28,6 +29,13 @@ function getPortfolio(req, res) {
   res.json(marketService.getMarket().getPortfolio(req.validated.params.userId));
 }
 
+async function updateUser(req, res) {
+  const user = await marketService.mutate((market) =>
+    market.updateUser(req.validated.params.userId, req.validated.body),
+  );
+  res.json({ ok: true, user });
+}
+
 async function deleteCurrentUser(req, res) {
   const userId = req.supabaseUser.id;
 
@@ -37,7 +45,7 @@ async function deleteCurrentUser(req, res) {
   if (supabase) {
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) {
-      throw error;
+      throw new ApiError(502, `Auth service error: ${error.message}`);
     }
   }
 
@@ -48,6 +56,7 @@ module.exports = {
   createUser,
   listUsers,
   getUser,
+  updateUser,
   getBalance,
   getPortfolio,
   deleteCurrentUser,
