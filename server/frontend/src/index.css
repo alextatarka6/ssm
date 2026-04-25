@@ -643,11 +643,11 @@ button {
   background:
     linear-gradient(
       -45deg,
-      var(--hero-band-red) 0 18%,
-      var(--hero-band-orange) 18% 36%,
+      var(--hero-band-blue) 0 18%,
+      var(--hero-band-green) 18% 36%,
       var(--hero-band-yellow) 36% 54%,
-      var(--hero-band-green) 54% 72%,
-      var(--hero-band-blue) 72% 100%
+      var(--hero-band-orange) 54% 72%,
+      var(--hero-band-red) 72% 100%
     );
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
