@@ -29,6 +29,10 @@ function getPortfolio(req, res) {
   res.json(marketService.getMarket().getPortfolio(req.validated.params.userId));
 }
 
+function getUserOrders(req, res) {
+  res.json(marketService.getMarket().getUserOrders(req.validated.params.userId));
+}
+
 async function updateUser(req, res) {
   const user = await marketService.mutate((market) =>
     market.updateUser(req.validated.params.userId, req.validated.body),
@@ -59,5 +63,6 @@ module.exports = {
   updateUser,
   getBalance,
   getPortfolio,
+  getUserOrders,
   deleteCurrentUser,
 };

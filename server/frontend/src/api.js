@@ -79,6 +79,16 @@ export function placeOrder(order) {
   });
 }
 
+export function cancelOrder(orderId) {
+  return fetchJson(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+    method: "POST",
+  });
+}
+
+export function getUserOrders(userId) {
+  return fetchJson(`/users/${encodeURIComponent(userId)}/orders`);
+}
+
 export function createUser(userId, { username, email, avatarUrl, initialCashCents = 500000 } = {}) {
   return fetchJson("/users/", {
     method: "POST",

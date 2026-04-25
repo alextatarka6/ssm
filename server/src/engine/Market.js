@@ -513,6 +513,20 @@ class Market {
     };
   }
 
+  getUserOrders(userId) {
+    const user = this._requireUser(userId);
+    const orders = [];
+
+    for (const order of this.orders.values()) {
+      if (order.userId === user.userId) {
+        orders.push(this.serializeOrder(order));
+      }
+    }
+
+    orders.sort((a, b) => b.seq - a.seq);
+    return { orders };
+  }
+
   updateUser(userId, { username, avatarUrl }) {
     const user = this._requireUser(userId);
     if (username !== undefined) {

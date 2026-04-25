@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  cancelOrder,
   createUser,
   deleteCurrentProfile,
   getAssetCandles,
   getAssets,
   getUserAccountBalances,
+  getUserOrders,
   getUserPortfolio,
   placeOrder,
   updateAsset,
@@ -251,6 +253,9 @@ export default function App() {
   const [orderSide, setOrderSide] = useState("BUY");
   const [orderQuantity, setOrderQuantity] = useState("1");
   const [orderLimitPrice, setOrderLimitPrice] = useState("");
+  const [userOrders, setUserOrders] = useState([]);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [orderHistoryError, setOrderHistoryError] = useState(null);
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
@@ -349,6 +354,9 @@ export default function App() {
     setOrderSide("BUY");
     setOrderQuantity("1");
     setOrderLimitPrice("");
+    setUserOrders([]);
+    setCancellingOrderId(null);
+    setOrderHistoryError(null);
   }
 
   function getAssetDisplayName(assetId) {
@@ -373,10 +381,11 @@ export default function App() {
 
     const preferredAssetId = options.preferredAssetId ?? activeAssetId;
 
-    const [portfolioResult, assetsResult, accountBalances] = await Promise.all([
+    const [portfolioResult, assetsResult, accountBalances, ordersResult] = await Promise.all([
       getUserPortfolio(nextUserId),
       getAssets(),
       getUserAccountBalances(nextUserId).catch(() => null),
+      getUserOrders(nextUserId).catch(() => null),
     ]);
 
     const preferredAssetExists =
@@ -391,6 +400,7 @@ export default function App() {
         accountBalances?.reserved_cash_cents ?? portfolioResult.reserved_cash_cents,
     });
     setAssets(assetsResult);
+    setUserOrders(ordersResult?.orders ?? []);
 
     const userIssuedAssetId =
       assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
@@ -898,6 +908,23 @@ export default function App() {
       setTradingError(err.message || "Unable to place this order.");
     } finally {
       setIsSubmittingOrder(false);
+    }
+  }
+
+  async function handleCancelOrder(orderId) {
+    if (cancellingOrderId !== null) {
+      return;
+    }
+
+    try {
+      setCancellingOrderId(orderId);
+      setOrderHistoryError(null);
+      await cancelOrder(orderId);
+      await refreshDashboard({ preferredAssetId: activeAssetId });
+    } catch (err) {
+      setOrderHistoryError(err.message || "Unable to cancel this order.");
+    } finally {
+      setCancellingOrderId(null);
     }
   }
 
@@ -1715,6 +1742,76 @@ export default function App() {
               {otherAssets.length === 0 && assets.length > 0 ? (
                 <p className="helper-copy">This user currently owns every listed stock.</p>
               ) : null}
+            </section>
+
+            <section className="panel order-history-panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Order History</h2>
+                  <p className="panel-copy">All orders placed by this account, newest first.</p>
+                </div>
+              </div>
+
+              {orderHistoryError ? <div className="error-banner">{orderHistoryError}</div> : null}
+
+              <div className="order-history-list">
+                {userOrders.length > 0 ? (
+                  userOrders.map((order) => {
+                    const isResting = order.status === "OPEN" || order.status === "PARTIALLY_FILLED";
+                    const isCancellingThis = cancellingOrderId === order.id;
+
+                    let statusLabel = order.status;
+                    let statusClass = "order-status-default";
+                    if (isResting) {
+                      statusLabel = order.status === "PARTIALLY_FILLED" ? "Partial" : "Resting";
+                      statusClass = "order-status-resting";
+                    } else if (order.status === "FILLED") {
+                      statusLabel = "Fulfilled";
+                      statusClass = "order-status-fulfilled";
+                    } else if (order.status === "CANCELED" || order.status === "REJECTED") {
+                      statusLabel = order.status === "CANCELED" ? "Cancelled" : "Rejected";
+                      statusClass = "order-status-cancelled";
+                    }
+
+                    return (
+                      <article key={order.id} className="order-history-row">
+                        <div className="order-history-main">
+                          <div className="order-history-meta">
+                            <span className={`order-status-badge ${statusClass}`}>{statusLabel}</span>
+                            <span className="order-side-badge" data-side={order.side}>
+                              {order.side === "BUY" ? "Buy" : "Sell"}
+                            </span>
+                            <span className="order-history-name">{getAssetDisplayName(order.asset_id)}</span>
+                          </div>
+                          <div className="order-history-details">
+                            <span>{order.qty} share{order.qty === 1 ? "" : "s"}</span>
+                            <span className="order-history-sep">·</span>
+                            <span>Limit {formatCurrency(order.limit_price_cents)}</span>
+                            {order.status === "PARTIALLY_FILLED" ? (
+                              <>
+                                <span className="order-history-sep">·</span>
+                                <span>{order.qty - order.remaining_qty} filled, {order.remaining_qty} remaining</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        {isResting ? (
+                          <button
+                            className="ghost-button order-cancel-button"
+                            type="button"
+                            disabled={cancellingOrderId !== null}
+                            onClick={() => handleCancelOrder(order.id)}
+                          >
+                            {isCancellingThis ? "Cancelling..." : "Cancel"}
+                          </button>
+                        ) : null}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="empty-state">No orders have been placed yet.</div>
+                )}
+              </div>
             </section>
           </>
         )}
