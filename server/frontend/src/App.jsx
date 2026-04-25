@@ -994,6 +994,24 @@ export default function App() {
     };
   }, []);
 
+  const sessionUserIdRef = useRef(sessionUserId);
+  const activeAssetIdRef = useRef(activeAssetId);
+  useEffect(() => { sessionUserIdRef.current = sessionUserId; }, [sessionUserId]);
+  useEffect(() => { activeAssetIdRef.current = activeAssetId; }, [activeAssetId]);
+
+  useEffect(() => {
+    if (!sessionUserId) return undefined;
+
+    const interval = setInterval(() => {
+      const currentUserId = sessionUserIdRef.current;
+      const currentAssetId = activeAssetIdRef.current;
+      if (!currentUserId) return;
+      void loadDashboard(currentUserId, { createIfMissing: false, preferredAssetId: currentAssetId });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [sessionUserId]);
+
   useEffect(() => {
     if (!activeAssetId || !sessionUserId) {
       setCandles(null);
