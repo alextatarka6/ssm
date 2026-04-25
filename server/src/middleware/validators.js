@@ -53,6 +53,10 @@ function validateCreateUser(req, _res, next) {
         typeof req.body.username === "string" && req.body.username.trim()
           ? req.body.username.trim()
           : undefined,
+      avatarUrl:
+        typeof req.body.avatar_url === "string" && req.body.avatar_url.trim()
+          ? req.body.avatar_url.trim()
+          : undefined,
     };
     next();
   } catch (error) {

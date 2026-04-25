@@ -361,46 +361,47 @@ export default function App() {
   }
 
   async function loadDashboard(nextUserId, options = {}) {
-    try {
-      const [portfolioResult, assetsResult, accountBalances] = await Promise.all([
-        getUserPortfolio(nextUserId),
-        getAssets(),
-        getUserAccountBalances(nextUserId).catch(() => null),
-      ]);
-
-      const preferredAssetId = options.preferredAssetId ?? activeAssetId;
-      const preferredAssetExists =
-        typeof preferredAssetId === "string" &&
-        (assetsResult.some((asset) => asset.asset_id === preferredAssetId) ||
-          (portfolioResult.holdings || []).some((holding) => holding.asset_id === preferredAssetId));
-
-      setPortfolio({
-        ...portfolioResult,
-        cash_cents: accountBalances?.cash_cents ?? portfolioResult.cash_cents,
-        reserved_cash_cents:
-          accountBalances?.reserved_cash_cents ?? portfolioResult.reserved_cash_cents,
+    // On auth hydration (username present), upsert the market user so username/avatar
+    // are always current and a stock is issued if one was never created.
+    if (options.username !== undefined) {
+      await createUser(nextUserId, {
+        username: options.username,
+        email: options.email,
+        avatarUrl: options.avatarUrl,
       });
-      setAssets(assetsResult);
-
-      const userIssuedAssetId =
-        assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
-      const defaultAssetId =
-        (preferredAssetExists ? preferredAssetId : null) ||
-        userIssuedAssetId ||
-        portfolioResult.holdings?.[0]?.asset_id ||
-        assetsResult[0]?.asset_id ||
-        null;
-      setActiveAssetId(defaultAssetId);
-      setSessionUserId(nextUserId);
-    } catch (err) {
-      if (options.createIfMissing && err.status === 404) {
-        await createUser(nextUserId, { username: options.username, email: options.email, avatarUrl: options.avatarUrl });
-        await loadDashboard(nextUserId, { createIfMissing: false });
-        return;
-      }
-
-      throw err;
     }
+
+    const preferredAssetId = options.preferredAssetId ?? activeAssetId;
+
+    const [portfolioResult, assetsResult, accountBalances] = await Promise.all([
+      getUserPortfolio(nextUserId),
+      getAssets(),
+      getUserAccountBalances(nextUserId).catch(() => null),
+    ]);
+
+    const preferredAssetExists =
+      typeof preferredAssetId === "string" &&
+      (assetsResult.some((asset) => asset.asset_id === preferredAssetId) ||
+        (portfolioResult.holdings || []).some((holding) => holding.asset_id === preferredAssetId));
+
+    setPortfolio({
+      ...portfolioResult,
+      cash_cents: accountBalances?.cash_cents ?? portfolioResult.cash_cents,
+      reserved_cash_cents:
+        accountBalances?.reserved_cash_cents ?? portfolioResult.reserved_cash_cents,
+    });
+    setAssets(assetsResult);
+
+    const userIssuedAssetId =
+      assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
+    const defaultAssetId =
+      (preferredAssetExists ? preferredAssetId : null) ||
+      userIssuedAssetId ||
+      portfolioResult.holdings?.[0]?.asset_id ||
+      assetsResult[0]?.asset_id ||
+      null;
+    setActiveAssetId(defaultAssetId);
+    setSessionUserId(nextUserId);
   }
 
   async function hydrateAuthenticatedUser(user) {
@@ -420,7 +421,7 @@ export default function App() {
       setSessionUsername(nextUsername);
       setSessionEmail(user.email || null);
       setSessionAvatarUrl(getAvatarUrlFromUser(user));
-      await loadDashboard(authUserId, { createIfMissing: true, username: nextUsername, email: user.email ?? null, avatarUrl: getAvatarUrlFromUser(user) });
+      await loadDashboard(authUserId, { username: nextUsername, email: user.email ?? null, avatarUrl: getAvatarUrlFromUser(user) });
     } catch (err) {
       resetDashboardState();
       setAuthError(err.message || "Unable to load your dashboard.");
@@ -837,7 +838,6 @@ export default function App() {
     }
 
     await loadDashboard(sessionUserId, {
-      createIfMissing: false,
       preferredAssetId: options.preferredAssetId ?? activeAssetId,
     });
   }
