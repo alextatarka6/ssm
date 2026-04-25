@@ -854,8 +854,15 @@ class Market {
     if (user.userId === TREASURY_USER) return;
     const alreadyHasStock = [...this.stocks.values()].some((s) => s.issuerUserId === user.userId);
     if (alreadyHasStock) return;
-    const assetId = this._slugify(user.username || user.userId);
-    if (!assetId || this.stocks.has(assetId)) return;
+
+    const usernameSlug = user.username ? this._slugify(user.username) : null;
+    const userIdSlug = this._slugify(user.userId);
+    const assetId =
+      (usernameSlug && !this.stocks.has(usernameSlug)) ? usernameSlug :
+      (userIdSlug && !this.stocks.has(userIdSlug)) ? userIdSlug :
+      null;
+
+    if (!assetId) return;
     try {
       this.createPersonAsset({ issuerUserId: user.userId, assetId, name: "Stock" });
     } catch {
