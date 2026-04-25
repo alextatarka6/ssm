@@ -68,10 +68,10 @@ function validateCreateAsset(req, _res, next) {
   try {
     const validated = cloneValidated(req);
     const issuerPct =
-      req.body.issuer_pct === undefined ? 0.4 : Number(req.body.issuer_pct);
+      req.body.issuer_pct === undefined ? 0.1 : Number(req.body.issuer_pct);
 
-    if (!Number.isFinite(issuerPct) || issuerPct <= 0 || issuerPct >= 1) {
-      throw new ValidationError("issuer_pct must be a number between 0 and 1.");
+    if (!Number.isFinite(issuerPct) || issuerPct <= 0 || issuerPct > 0.1) {
+      throw new ValidationError("issuer_pct must be a number between 0 and 0.1.");
     }
 
     validated.body = {

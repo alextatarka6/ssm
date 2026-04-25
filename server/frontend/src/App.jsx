@@ -256,6 +256,7 @@ export default function App() {
   const [userOrders, setUserOrders] = useState([]);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [orderHistoryError, setOrderHistoryError] = useState(null);
+  const [marketSearch, setMarketSearch] = useState("");
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
@@ -290,6 +291,16 @@ export default function App() {
     () => assets.filter((asset) => !holdingAssetIds.has(asset.asset_id)),
     [assets, holdingAssetIds],
   );
+
+  const filteredMarketAssets = useMemo(() => {
+    const trimmed = marketSearch.trim().toLowerCase();
+    if (!trimmed) return assets;
+    return assets.filter((asset) => {
+      const issuerName = getAssetIssuerName(asset, { sessionUserId, sessionUsername }) || "";
+      return issuerName.toLowerCase().includes(trimmed);
+    });
+  }, [assets, marketSearch, sessionUserId, sessionUsername]);
+
   const issuedAsset = useMemo(
     () => assets.find((asset) => asset.issuer_user_id === sessionUserId) || null,
     [assets, sessionUserId],
@@ -318,6 +329,12 @@ export default function App() {
   );
   const isActiveAssetIssuedByUser = activeAsset?.issuer_user_id === sessionUserId;
   const buyableShares = activeAsset?.sell_order_shares || 0;
+  const ownStockMaxShares = isActiveAssetIssuedByUser
+    ? Math.floor((activeAsset?.total_supply || 0) * 0.1)
+    : null;
+  const ownStockBuyableShares = ownStockMaxShares !== null
+    ? Math.max(0, ownStockMaxShares - (activeHolding?.shares || 0))
+    : null;
   const estimatedOrderValueCents =
     orderQuantityValue && orderLimitPriceCents
       ? orderQuantityValue * orderLimitPriceCents
@@ -1618,6 +1635,12 @@ export default function App() {
                             <span>Sellable shares</span>
                             <strong>{availableShares}</strong>
                           </div>
+                          {ownStockBuyableShares !== null ? (
+                            <div className="trade-stat-card">
+                              <span>Own stock cap</span>
+                              <strong>{ownStockBuyableShares} of {ownStockMaxShares} left</strong>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1711,11 +1734,23 @@ export default function App() {
                     Other stocks available in the system, including ones this user does not own.
                   </p>
                 </div>
+                <input
+                  className="market-search-input"
+                  type="search"
+                  placeholder="Search by username"
+                  value={marketSearch}
+                  onChange={(event) => setMarketSearch(event.target.value)}
+                  aria-label="Search market by username"
+                />
               </div>
 
               <div className="positions">
-                {assets.length > 0 ? (
-                  assets.map((asset) => {
+                {assets.length === 0 ? (
+                  <div className="empty-state">No market assets are available yet.</div>
+                ) : filteredMarketAssets.length === 0 ? (
+                  <div className="empty-state">No stocks match that username.</div>
+                ) : (
+                  filteredMarketAssets.map((asset) => {
                     const owned = holdingAssetIds.has(asset.asset_id);
                     const issuedByUser = asset.issuer_user_id === sessionUserId;
                     return (
@@ -1734,8 +1769,6 @@ export default function App() {
                       </article>
                     );
                   })
-                ) : (
-                  <div className="empty-state">No market assets are available yet.</div>
                 )}
               </div>
 

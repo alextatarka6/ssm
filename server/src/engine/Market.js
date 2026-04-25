@@ -79,6 +79,8 @@ class Market {
       market.events.push(event);
     }
 
+    market._migrateIssuerCap();
+
     return market;
   }
 
@@ -153,7 +155,7 @@ class Market {
     issuerUserId,
     assetId,
     totalSupply = 1000,
-    issuerPct = 0.4,
+    issuerPct = 0.1,
     name,
   }) {
     const normalizedIssuerId = this._normalizeRequiredString(issuerUserId, "issuer_user_id");
@@ -167,8 +169,8 @@ class Market {
     if (!Number.isInteger(totalSupply) || totalSupply <= 0) {
       throw new ValidationError("Total supply must be a positive integer.");
     }
-    if (typeof issuerPct !== "number" || issuerPct <= 0 || issuerPct >= 1) {
-      throw new ValidationError("Issuer percentage must be between 0 and 1.");
+    if (typeof issuerPct !== "number" || issuerPct <= 0 || issuerPct > 0.1) {
+      throw new ValidationError("Issuer percentage must be between 0 and 0.1 (10%).");
     }
 
     const stock = new Stock({
@@ -287,7 +289,19 @@ class Market {
     }
 
     this._requireUser(normalizedUserId);
-    this._requireAsset(normalizedAssetId);
+    const stock = this._requireAsset(normalizedAssetId);
+
+    if (side === Side.BUY && stock.issuerUserId === normalizedUserId) {
+      const maxShares = Math.floor(stock.totalSupply * 0.1);
+      const holding = this._getHolding(normalizedUserId, normalizedAssetId);
+      const pendingQty = this._getPendingBuyQty(normalizedUserId, normalizedAssetId);
+      if (holding.shares + pendingQty + qty > maxShares) {
+        const canBuy = Math.max(0, maxShares - holding.shares - pendingQty);
+        throw new ValidationError(
+          `Issuers may only hold up to 10% of their own stock (${maxShares} shares). You can buy at most ${canBuy} more share${canBuy === 1 ? "" : "s"}.`,
+        );
+      }
+    }
 
     const order = new Order({
       id: this.generators.nextOrderId++,
@@ -312,6 +326,14 @@ class Market {
     });
 
     const trades = this._match(order);
+
+    if (
+      order.side === Side.BUY &&
+      order.remainingQty > 0 &&
+      ![OrderStatus.REJECTED, OrderStatus.CANCELED].includes(order.status)
+    ) {
+      trades.push(...this._treasuryFillRemainingBuy(order));
+    }
 
     if (order.remainingQty > 0 && ![OrderStatus.REJECTED, OrderStatus.CANCELED].includes(order.status)) {
       if (order.remainingQty < order.qty) {
@@ -589,6 +611,48 @@ class Market {
     };
   }
 
+  _treasuryFillRemainingBuy(buyOrder) {
+    const treasury = this.users.get(TREASURY_USER);
+    if (!treasury) return [];
+
+    const treasuryHolding = this._getHolding(TREASURY_USER, buyOrder.assetId);
+    const availableShares = treasuryHolding.shares - treasuryHolding.reservedShares;
+    if (availableShares <= 0) return [];
+
+    const fillQty = Math.min(buyOrder.remainingQty, availableShares);
+    const tradePrice = buyOrder.limitPriceCents;
+
+    const treasuryOrder = new Order({
+      id: this.generators.nextOrderId++,
+      userId: TREASURY_USER,
+      assetId: buyOrder.assetId,
+      side: Side.SELL,
+      qty: fillQty,
+      remainingQty: fillQty,
+      limitPriceCents: tradePrice,
+      status: OrderStatus.OPEN,
+      seq: this._nextSeq(),
+    });
+
+    try {
+      this._reserveForOrder(treasuryOrder);
+    } catch {
+      return [];
+    }
+
+    const trade = this._executeTrade({
+      incoming: buyOrder,
+      resting: treasuryOrder,
+      fillQty,
+      tradePrice,
+    });
+
+    treasuryOrder.status = treasuryOrder.remainingQty === 0 ? OrderStatus.FILLED : OrderStatus.PARTIALLY_FILLED;
+    this.orders.set(treasuryOrder.id, treasuryOrder);
+
+    return [trade];
+  }
+
   _rebalanceTreasuryOrders(assetId) {
     // Cancel all open treasury orders for this asset
     for (const order of this.orders.values()) {
@@ -746,6 +810,9 @@ class Market {
       if (order.assetId !== incoming.assetId || order.side === incoming.side) {
         return false;
       }
+      if (order.userId === incoming.userId) {
+        return false;
+      }
 
       return [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status) && order.remainingQty > 0;
     });
@@ -846,6 +913,81 @@ class Market {
     }
 
     return shares;
+  }
+
+  _getPendingBuyQty(userId, assetId) {
+    let qty = 0;
+    for (const order of this.orders.values()) {
+      if (
+        order.userId === userId &&
+        order.assetId === assetId &&
+        order.side === Side.BUY &&
+        [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status) &&
+        order.remainingQty > 0
+      ) {
+        qty += order.remainingQty;
+      }
+    }
+    return qty;
+  }
+
+  _migrateIssuerCap() {
+    const MAX_ISSUER_PCT = 0.1;
+
+    for (const stock of this.stocks.values()) {
+      if (stock.issuerUserId === TREASURY_USER) continue;
+      if (!this.users.has(stock.issuerUserId)) continue;
+
+      const maxShares = Math.floor(stock.totalSupply * MAX_ISSUER_PCT);
+      const holdingKey = this._holdingKey(stock.issuerUserId, stock.assetId);
+      const issuerHolding = this.holdings.get(holdingKey);
+      if (!issuerHolding || issuerHolding.shares <= maxShares) continue;
+
+      // Cancel any open buy orders from this issuer on their own stock
+      for (const order of this.orders.values()) {
+        if (
+          order.userId === stock.issuerUserId &&
+          order.assetId === stock.assetId &&
+          order.side === Side.BUY &&
+          [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status)
+        ) {
+          order.status = OrderStatus.CANCELED;
+          this._releaseRemainingReserve(order);
+        }
+      }
+
+      // Cap the holding and transfer excess to treasury
+      const excess = issuerHolding.shares - maxShares;
+      issuerHolding.shares = maxShares;
+
+      // If reserved shares now exceed the new holding (from open sell orders), cancel
+      // those sell orders until reserves fit within the capped holding
+      if (issuerHolding.reservedShares > maxShares) {
+        for (const order of this.orders.values()) {
+          if (issuerHolding.reservedShares <= maxShares) break;
+          if (
+            order.userId === stock.issuerUserId &&
+            order.assetId === stock.assetId &&
+            order.side === Side.SELL &&
+            [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status)
+          ) {
+            order.status = OrderStatus.CANCELED;
+            this._releaseRemainingReserve(order);
+          }
+        }
+        issuerHolding.reservedShares = Math.min(issuerHolding.reservedShares, maxShares);
+      }
+
+      const treasuryHolding = this._getHolding(TREASURY_USER, stock.assetId);
+      treasuryHolding.shares += excess;
+
+      // Credit treasury cash so it remains able to quote both sides of the market
+      const lastPrice = this.lastPriceCents.get(stock.assetId) || 1000;
+      const treasury = this.users.get(TREASURY_USER);
+      if (treasury) {
+        treasury.cashCents += excess * lastPrice;
+      }
+    }
   }
 
   _getHolding(userId, assetId) {
