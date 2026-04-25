@@ -467,7 +467,7 @@ button {
 .login-form input,
 .profile-form input,
 .trade-form input,
-.panel-header input {
+.panel-header input:not(.market-search-input) {
   width: 100%;
   border: 1px solid rgba(138, 111, 96, 0.22);
   border-radius: 16px;
