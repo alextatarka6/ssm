@@ -1539,6 +1539,13 @@ export default function App() {
                     <strong>Reserved</strong>
                     <div>{formatCurrency(portfolio?.reserved_cash_cents)}</div>
                   </div>
+                  <div>
+                    <strong>Net Worth</strong>
+                    <div>{formatCurrency(
+                      (portfolio?.cash_cents ?? 0) +
+                      holdingAssets.reduce((sum, h) => sum + (h.market_value_cents ?? 0), 0)
+                    )}</div>
+                  </div>
                 </div>
 
                 <div className="positions">
@@ -1615,7 +1622,6 @@ export default function App() {
                             className="trade-asset-title"
                             heading="h3"
                           />
-                          <p className="helper-copy">Issuer: {activeAssetIssuerName}</p>
                         </div>
 
                         <div className="trade-stat-grid">

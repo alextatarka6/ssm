@@ -81,6 +81,10 @@ class Market {
 
     market._migrateIssuerCap();
 
+    for (const stock of market.stocks.values()) {
+      market._rebalanceTreasuryOrders(stock.assetId);
+    }
+
     return market;
   }
 

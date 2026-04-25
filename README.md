@@ -1,187 +1,72 @@
-# SSM
+# SSM — Section Stock Market
 
-SSM is a small stock-simulation project with:
+**Live site:** https://master.dcy1agiyvre79.amplifyapp.com
 
-- a Python FastAPI backend for trading, portfolios, and query endpoints
-- a React + Vite frontend for Supabase auth, portfolio viewing, market browsing, and charting
-- a Python matching engine in `server/backend/engine.py`
+A stock-market simulation where every user gets their own tradeable stock. Built with a Node.js/Express backend (in-memory matching engine, snapshot persistence) and a React + Vite frontend backed by Supabase Auth.
 
 ## Project Layout
 
-```text
-server/backend/         FastAPI backend, matching engine, routes, persistence, tests
-server/frontend/        React frontend
+```
+server/             Node.js backend (Express, matching engine, routes)
+server/frontend/    React + Vite frontend
+supabase/           Supabase migrations
 ```
 
-## Requirements
+## Backend
 
-- Python 3.10+
-- Node.js 18+
-- npm
+**Requirements:** Node.js 18+
 
-## Backend Setup
+**Environment variables** (create `server/.env`):
 
-From the repo root:
+| Variable | Description |
+|---|---|
+| `PORT` | HTTP port (default `8080`) |
+| `API_KEY` | Key required for internal API calls |
+| `DATABASE_URL` | Postgres URL (for Supabase-linked user sync) |
+| `DATA_FILE` | Path to JSON snapshot file for market persistence |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated allowed origins |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key |
 
-```bash
-pip install -r server/backend/requirements.txt
-```
-
-The backend loads environment variables from:
-
-```text
-server/backend/.env
-```
-
-Set `DATABASE_URL` to the same Postgres database used by your Supabase project so auth-linked market state and backend queries stay in sync. If `DATABASE_URL` is not set, it falls back to a local SQLite database.
-
-## Supabase
-
-The frontend uses Supabase Auth for email/password sign-in and registration. Supabase SQL migrations for auth-linked profiles plus portfolio/trading tables live in:
-
-```text
-supabase/migrations/
-```
-
-Those migrations keep login records in `auth.users`, create app tables in `public`, and backfill initial balances and asset allocation. See [supabase/README.md](/home/inferno/projects/ssm/supabase/README.md) for the schema summary and migration notes.
-
-For the frontend, define these Vite env vars:
-
-```text
-VITE_SUPABASE_URL
-VITE_SUPABASE_PUBLISHABLE_KEY
-```
-
-## Run The Backend
-
-From the repo root:
+**Run (dev):**
 
 ```bash
 cd server
-npm run dev:py
-```
-
-That starts FastAPI on:
-
-```text
-http://localhost:8000
-```
-
-API routes are mounted under:
-
-```text
-/api
-```
-
-Examples:
-
-- `GET /api/assets`
-- `GET /api/users/{user_id}/portfolio`
-- `GET /api/assets/{asset_id}/candles`
-
-If the frontend has been built, the backend also serves the static app from `/`.
-
-## Run The Frontend
-
-For local frontend development:
-
-```bash
-cd server/frontend
 npm install
 npm run dev
 ```
 
-That starts Vite on:
+Starts on `http://localhost:8080`. API routes are under `/api`.
 
-```text
-http://localhost:5173
-```
+## Frontend
 
-The frontend expects the backend API at:
+**Environment variables** (create `server/frontend/.env`):
 
-```text
-http://localhost:8000/api
-```
+| Variable | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
+| `VITE_API_BASE_URL` | Backend API base (default `/api`) |
 
-You can change that with `VITE_API_BASE_URL` if needed.
-
-## Build The Frontend
+**Run (dev):**
 
 ```bash
-cd server/frontend
-npm install
-npm run build
+cd server
+npm run frontend:dev
 ```
 
-The production build is written to:
+Starts Vite on `http://localhost:5173`, proxying API calls to the backend.
 
-```text
-server/frontend/dist
-```
-
-Once built, those files can be served by the FastAPI app.
-
-## Deploy To AWS Amplify Hosting
-
-The frontend in `server/frontend` is set up for static hosting on AWS Amplify Hosting.
-
-Before deploying, define these frontend build environment variables:
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_API_BASE_URL`
-
-`VITE_API_BASE_URL` should be the full deployed backend URL ending in `/api`, for example:
-
-```text
-https://your-backend.example.com/api
-```
-
-Amplify build settings are defined in [amplify.yml](/home/inferno/projects/ssm/amplify.yml). For the full deployment checklist, including the SPA rewrite rule, see [DEPLOY_AMPLIFY.md](/home/inferno/projects/ssm/DEPLOY_AMPLIFY.md).
-
-## EC2 Backend Deployment (ssmEC2)
-
-The backend runs on an AWS EC2 instance (`ssmEC2`) in `us-east-2` (Ohio).
-
-- **Instance:** ssmEC2
-- **Host:** `ec2-18-221-139-100.us-east-2.compute.amazonaws.com`
-- **Region:** us-east-2
-- **Key pair:** `alex-dev-laptop.pem` (gitignored — keep this file secure)
-
-### SSH Access
+**Build:**
 
 ```bash
-ssh -i "alex-dev-laptop.pem" ubuntu@ec2-18-221-139-100.us-east-2.compute.amazonaws.com
+cd server
+npm run frontend:build
 ```
 
-If you get a permissions error on the key file, fix it first:
+Output goes to `server/frontend/dist` and is served statically by the backend.
 
-```bash
-chmod 400 alex-dev-laptop.pem
-```
+## Deployment
 
-### Copy Files to the Instance (SCP)
-
-```bash
-scp -i alex-dev-laptop.pem <local-file> ubuntu@ec2-18-221-139-100.us-east-2.compute.amazonaws.com:/home/ubuntu
-```
-
-For full connection details, prerequisites, and common commands see `EC2_ACCESS.txt` (gitignored).
-
-## Running Tests
-
-Backend tests:
-
-```bash
-pytest -q server/backend/tests/test_api.py
-```
-
-## Current Frontend Flow
-
-- register or sign in with email/password through Supabase Auth
-- create the trading user record automatically the first time an authenticated user opens the dashboard
-- load portfolio holdings from the API and cash balances from `public.user_accounts`
-- default the chart to the signed-in user's issued asset when one exists
-- browse the market list and inspect Heikin Ashi candles for any asset with trade history
-
-If an asset has no trade history yet, the chart panel shows an empty-state message instead of candles.
+- **Frontend:** hosted on AWS Amplify. Build settings are in `amplify.yml`. Set the three `VITE_*` env vars in Amplify, with `VITE_API_BASE_URL` pointing to the deployed backend. See `DEPLOY_AMPLIFY.md` for the full checklist.
+- **Backend:** runs on EC2 (`ssmEC2`, `us-east-2`). SSH access: `ssh -i alex-dev-laptop.pem ubuntu@ec2-18-221-139-100.us-east-2.compute.amazonaws.com` (key is gitignored).
