@@ -19,27 +19,28 @@ app.disable("x-powered-by");
 app.use(morgan("combined"));
 app.use(express.json({ limit: "1mb" }));
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      // Fail-closed: if CORS_ALLOWED_ORIGINS is not configured, reject all
-      // cross-origin requests rather than silently allowing everything.
-      if (!corsAllowedOrigins.length) {
-        if (!origin) {
-          // Same-origin or server-to-server request — allow.
-          return callback(null, true);
-        }
-        return callback(new Error("Origin not allowed by CORS"));
-      }
-
-      if (!origin || corsAllowedOrigins.includes(origin)) {
+const corsOptions = {
+  origin(origin, callback) {
+    // Fail-closed: if CORS_ALLOWED_ORIGINS is not configured, reject all
+    // cross-origin requests rather than silently allowing everything.
+    if (!corsAllowedOrigins.length) {
+      if (!origin) {
+        // Same-origin or server-to-server request — allow.
         return callback(null, true);
       }
+      return callback(new Error("Origin not allowed by CORS"));
+    }
 
-      callback(new Error("Origin not allowed by CORS"));
-    },
-  }),
-);
+    if (!origin || corsAllowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    callback(new Error("Origin not allowed by CORS"));
+  },
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 app.get("/health", async (_req, res) => {
   try {
