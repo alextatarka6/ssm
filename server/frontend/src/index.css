@@ -1375,6 +1375,12 @@ button {
   opacity: 0.5;
 }
 
+.order-history-toggle {
+  justify-self: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .order-status-badge,
 .order-side-badge {
   padding: 3px 9px;

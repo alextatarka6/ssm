@@ -610,6 +610,7 @@ class Market {
       name: stock.name,
       last_price_cents: this.lastPriceCents.get(stock.assetId) || null,
       sell_order_shares: this._getOpenSellOrderShares(stock.assetId),
+      treasury_available_shares: this._getTreasuryAvailableShares(stock.assetId),
     };
   }
 
@@ -644,6 +645,9 @@ class Market {
   _treasuryFillRemainingBuy(buyOrder) {
     const treasury = this.users.get(TREASURY_USER);
     if (!treasury) return [];
+
+    const lastPrice = this.lastPriceCents.get(buyOrder.assetId);
+    if (lastPrice && buyOrder.limitPriceCents < lastPrice * 1.05) return [];
 
     const treasuryHolding = this._getHolding(TREASURY_USER, buyOrder.assetId);
     const availableShares = treasuryHolding.shares - treasuryHolding.reservedShares;
@@ -943,6 +947,11 @@ class Market {
     }
 
     return shares;
+  }
+
+  _getTreasuryAvailableShares(assetId) {
+    const holding = this._getHolding(TREASURY_USER, assetId);
+    return Math.max(0, holding.shares - holding.reservedShares);
   }
 
   _getPendingBuyQty(userId, assetId) {

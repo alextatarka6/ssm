@@ -28,6 +28,10 @@ export default function StockChart({ bars }) {
       crosshair: {
         mode: 1,
       },
+      rightPriceScale: {
+        autoScale: true,
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+      },
     });
 
     const candlestickSeries = chart.addCandlestickSeries({
@@ -48,6 +52,7 @@ export default function StockChart({ bars }) {
 
     candlestickSeries.setData(data);
     chart.timeScale().fitContent();
+    chart.priceScale("right").applyOptions({ autoScale: true });
 
     const handleResize = () => {
       chart.applyOptions({ width: container.current.clientWidth });

@@ -17,7 +17,6 @@ import StockChart from "./components/StockChart";
 import { getFrontendConfigError } from "./config";
 import { supabase } from "./utils/supabase";
 
-const ALLOWED_EMAIL_DOMAIN = "@nd.edu";
 
 function formatCurrency(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -39,7 +38,7 @@ function normalizeEmail(value) {
 }
 
 function isAllowedRegistrationEmail(email) {
-  return typeof email === "string" && email.endsWith(ALLOWED_EMAIL_DOMAIN);
+  return typeof email === "string" && email.includes("@");
 }
 
 function getUsernameFromUser(user) {
@@ -258,6 +257,7 @@ export default function App() {
   const [userOrders, setUserOrders] = useState([]);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [orderHistoryError, setOrderHistoryError] = useState(null);
+  const [orderHistoryExpanded, setOrderHistoryExpanded] = useState(false);
   const [marketSearch, setMarketSearch] = useState("");
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
@@ -330,7 +330,7 @@ export default function App() {
     0,
   );
   const isActiveAssetIssuedByUser = activeAsset?.issuer_user_id === sessionUserId;
-  const buyableShares = activeAsset?.sell_order_shares || 0;
+  const buyableShares = (activeAsset?.sell_order_shares || 0) + (activeAsset?.treasury_available_shares || 0);
   const ownStockMaxShares = isActiveAssetIssuedByUser
     ? Math.floor((activeAsset?.total_supply || 0) * 0.1)
     : null;
@@ -483,7 +483,7 @@ export default function App() {
     }
 
     if (authMode === "register" && !isAllowedRegistrationEmail(trimmedEmail)) {
-      setAuthError(`Use an email address ending in ${ALLOWED_EMAIL_DOMAIN} to register.`);
+      setAuthError("Enter a valid email address to register.");
       return;
     }
 
@@ -549,7 +549,7 @@ export default function App() {
     }
 
     if (!isAllowedRegistrationEmail(trimmedEmail)) {
-      setAuthError(`Verification emails can only be sent to addresses ending in ${ALLOWED_EMAIL_DOMAIN}.`);
+      setAuthError("Enter a valid email address.");
       return;
     }
 
@@ -729,7 +729,7 @@ export default function App() {
     }
 
     if (!isAllowedRegistrationEmail(normalizedProfileEmail)) {
-      setProfileError(`Use an email address ending in ${ALLOWED_EMAIL_DOMAIN}.`);
+      setProfileError("Enter a valid email address.");
       return;
     }
 
@@ -1203,7 +1203,7 @@ export default function App() {
                 <p className="helper-copy">
                   {authMode === "login"
                     ? "Use your email and password below."
-                    : `Use your ${ALLOWED_EMAIL_DOMAIN} email and password below.`}
+                    : "Enter your email and password below."}
                 </p>
               </div>
 
@@ -1239,7 +1239,7 @@ export default function App() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="dpeppa67@nd.edu"
+                  placeholder="you@example.com"
                   autoComplete="email"
                 />
 
@@ -1407,7 +1407,7 @@ export default function App() {
                   value={profileEmail}
                   onChange={(event) => setProfileEmail(event.target.value)}
                   autoComplete="email"
-                  placeholder={`you${ALLOWED_EMAIL_DOMAIN}`}
+                  placeholder="you@example.com"
                 />
 
               <label htmlFor="profile-password">New Password</label>
@@ -1786,7 +1786,7 @@ export default function App() {
                           {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
                           {owned ? <span className="card-badge">Owned</span> : null}
                         </div>
-                        <p>Buyable shares: {asset.sell_order_shares || 0}</p>
+                        <p>Buyable shares: {(asset.sell_order_shares || 0) + (asset.treasury_available_shares || 0)}</p>
                         <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
                       </article>
                     );
@@ -1811,58 +1811,69 @@ export default function App() {
 
               <div className="order-history-list">
                 {userOrders.length > 0 ? (
-                  userOrders.map((order) => {
-                    const isResting = order.status === "OPEN" || order.status === "PARTIALLY_FILLED";
-                    const isCancellingThis = cancellingOrderId === order.id;
+                  <>
+                    {(orderHistoryExpanded ? userOrders : userOrders.slice(0, 3)).map((order) => {
+                      const isResting = order.status === "OPEN" || order.status === "PARTIALLY_FILLED";
+                      const isCancellingThis = cancellingOrderId === order.id;
 
-                    let statusLabel = order.status;
-                    let statusClass = "order-status-default";
-                    if (isResting) {
-                      statusLabel = order.status === "PARTIALLY_FILLED" ? "Partial" : "Resting";
-                      statusClass = "order-status-resting";
-                    } else if (order.status === "FILLED") {
-                      statusLabel = "Fulfilled";
-                      statusClass = "order-status-fulfilled";
-                    } else if (order.status === "CANCELED" || order.status === "REJECTED") {
-                      statusLabel = order.status === "CANCELED" ? "Cancelled" : "Rejected";
-                      statusClass = "order-status-cancelled";
-                    }
+                      let statusLabel = order.status;
+                      let statusClass = "order-status-default";
+                      if (isResting) {
+                        statusLabel = order.status === "PARTIALLY_FILLED" ? "Partial" : "Resting";
+                        statusClass = "order-status-resting";
+                      } else if (order.status === "FILLED") {
+                        statusLabel = "Fulfilled";
+                        statusClass = "order-status-fulfilled";
+                      } else if (order.status === "CANCELED" || order.status === "REJECTED") {
+                        statusLabel = order.status === "CANCELED" ? "Cancelled" : "Rejected";
+                        statusClass = "order-status-cancelled";
+                      }
 
-                    return (
-                      <article key={order.id} className="order-history-row">
-                        <div className="order-history-main">
-                          <div className="order-history-meta">
-                            <span className={`order-status-badge ${statusClass}`}>{statusLabel}</span>
-                            <span className="order-side-badge" data-side={order.side}>
-                              {order.side === "BUY" ? "Buy" : "Sell"}
-                            </span>
-                            <span className="order-history-name">{getAssetDisplayName(order.asset_id)}</span>
+                      return (
+                        <article key={order.id} className="order-history-row">
+                          <div className="order-history-main">
+                            <div className="order-history-meta">
+                              <span className={`order-status-badge ${statusClass}`}>{statusLabel}</span>
+                              <span className="order-side-badge" data-side={order.side}>
+                                {order.side === "BUY" ? "Buy" : "Sell"}
+                              </span>
+                              <span className="order-history-name">{getAssetDisplayName(order.asset_id)}</span>
+                            </div>
+                            <div className="order-history-details">
+                              <span>{order.qty} share{order.qty === 1 ? "" : "s"}</span>
+                              <span className="order-history-sep">·</span>
+                              <span>Limit {formatCurrency(order.limit_price_cents)}</span>
+                              {order.status === "PARTIALLY_FILLED" ? (
+                                <>
+                                  <span className="order-history-sep">·</span>
+                                  <span>{order.qty - order.remaining_qty} filled, {order.remaining_qty} remaining</span>
+                                </>
+                              ) : null}
+                            </div>
                           </div>
-                          <div className="order-history-details">
-                            <span>{order.qty} share{order.qty === 1 ? "" : "s"}</span>
-                            <span className="order-history-sep">·</span>
-                            <span>Limit {formatCurrency(order.limit_price_cents)}</span>
-                            {order.status === "PARTIALLY_FILLED" ? (
-                              <>
-                                <span className="order-history-sep">·</span>
-                                <span>{order.qty - order.remaining_qty} filled, {order.remaining_qty} remaining</span>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-                        {isResting ? (
-                          <button
-                            className="ghost-button order-cancel-button"
-                            type="button"
-                            disabled={cancellingOrderId !== null}
-                            onClick={() => handleCancelOrder(order.id)}
-                          >
-                            {isCancellingThis ? "Cancelling..." : "Cancel"}
-                          </button>
-                        ) : null}
-                      </article>
-                    );
-                  })
+                          {isResting ? (
+                            <button
+                              className="ghost-button order-cancel-button"
+                              type="button"
+                              disabled={cancellingOrderId !== null}
+                              onClick={() => handleCancelOrder(order.id)}
+                            >
+                              {isCancellingThis ? "Cancelling..." : "Cancel"}
+                            </button>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                    {userOrders.length > 3 ? (
+                      <button
+                        type="button"
+                        className="ghost-button order-history-toggle"
+                        onClick={() => setOrderHistoryExpanded((e) => !e)}
+                      >
+                        {orderHistoryExpanded ? "Show less" : `Show ${userOrders.length - 3} more`}
+                      </button>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="empty-state">No orders have been placed yet.</div>
                 )}
