@@ -9,9 +9,8 @@ export default function StockChart({ bars }) {
 
     const pageStyles = getComputedStyle(document.documentElement);
     const chartBackground = pageStyles.getPropertyValue("--color-panel-strong").trim() || "#fff9ef";
-    const chartTextColor = pageStyles.getPropertyValue("--color-text").trim() || "#3f312d";
-    const gridColor = pageStyles.getPropertyValue("--color-border").trim() || "rgba(115, 88, 72, 0.22)";
-    const upColor = pageStyles.getPropertyValue("--color-success").trim() || "#6d9066";
+    const chartTextColor = pageStyles.getPropertyValue("--color-text-muted").trim() || "#9e8a7a";
+    const upColor = pageStyles.getPropertyValue("--color-success").trim() || "#1a9e6e";
     const downColor = pageStyles.getPropertyValue("--color-danger").trim() || "#a95d62";
 
     const chart = createChart(container.current, {
@@ -20,42 +19,65 @@ export default function StockChart({ bars }) {
       layout: {
         background: { color: chartBackground },
         textColor: chartTextColor,
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
+        vertLines: { visible: false },
+        horzLines: { color: "rgba(0,0,0,0.06)" },
       },
       crosshair: {
         mode: 1,
+        vertLine: { color: "rgba(0,0,0,0.2)", width: 1, style: 0, labelVisible: true },
+        horzLine: { color: "rgba(0,0,0,0.2)", width: 1, style: 0, labelVisible: true },
       },
       rightPriceScale: {
         autoScale: true,
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        scaleMargins: { top: 0.15, bottom: 0.1 },
+        borderVisible: false,
       },
+      timeScale: {
+        borderVisible: false,
+        tickMarkFormatter: (time) => {
+          const d = new Date(time * 1000);
+          return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        },
+      },
+      handleScroll: true,
+      handleScale: true,
     });
 
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor,
-      downColor,
-      borderVisible: false,
-      wickUpColor: upColor,
-      wickDownColor: downColor,
+    const firstClose = bars.length ? bars[0].close : 0;
+    const lastClose = bars.length ? bars[bars.length - 1].close : 0;
+    const lineColor = lastClose >= firstClose ? upColor : downColor;
+
+    // Build hex top color with 30% opacity for the gradient fill
+    const topColor = lineColor + "4d";
+
+    const areaSeries = chart.addAreaSeries({
+      lineColor,
+      topColor,
+      bottomColor: lineColor + "00",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 5,
+      crosshairMarkerBorderColor: chartBackground,
+      crosshairMarkerBackgroundColor: lineColor,
     });
 
     const data = bars.map((bar) => ({
       time: bar.time,
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
+      value: bar.close,
     }));
 
-    candlestickSeries.setData(data);
+    areaSeries.setData(data);
     chart.timeScale().fitContent();
-    chart.priceScale("right").applyOptions({ autoScale: true });
 
     const handleResize = () => {
-      chart.applyOptions({ width: container.current.clientWidth });
+      if (container.current) {
+        chart.applyOptions({ width: container.current.clientWidth });
+      }
     };
 
     window.addEventListener("resize", handleResize);
