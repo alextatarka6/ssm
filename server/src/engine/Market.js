@@ -567,11 +567,30 @@ class Market {
 
   getUserOrders(userId) {
     const user = this._requireUser(userId);
-    const orders = [];
 
+    // Build a map of orderId → { totalValueCents, totalQty } from trades
+    const fillsByOrderId = new Map();
+    for (const trade of this.trades) {
+      for (const orderId of [trade.buyOrderId, trade.sellOrderId]) {
+        let fill = fillsByOrderId.get(orderId);
+        if (!fill) {
+          fill = { totalValueCents: 0, totalQty: 0 };
+          fillsByOrderId.set(orderId, fill);
+        }
+        fill.totalValueCents += trade.priceCents * trade.qty;
+        fill.totalQty += trade.qty;
+      }
+    }
+
+    const orders = [];
     for (const order of this.orders.values()) {
       if (order.userId === user.userId) {
-        orders.push(this.serializeOrder(order));
+        const serialized = this.serializeOrder(order);
+        const fill = fillsByOrderId.get(order.id);
+        serialized.avg_fill_price_cents = fill
+          ? Math.round(fill.totalValueCents / fill.totalQty)
+          : null;
+        orders.push(serialized);
       }
     }
 

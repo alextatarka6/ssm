@@ -1333,46 +1333,46 @@ export default function App() {
             {topbarSubtitle ? <p className="topbar-subtitle">{topbarSubtitle}</p> : null}
           </div>
         </div>
-        <div className="topbar-actions">
-          <div className="profile-menu" ref={profileMenuRef}>
-            <button
-              className="profile-menu-button"
-              type="button"
-              aria-label="Open profile menu"
-              aria-haspopup="menu"
-              aria-expanded={isProfileMenuOpen}
-              onClick={() => setIsProfileMenuOpen((currentValue) => !currentValue)}
-            >
-              <AvatarBadge
-                imageUrl={sessionAvatarUrl}
-                label={sessionUsername || sessionEmail || "Your profile"}
-                className="profile-menu-avatar"
-              />
-            </button>
-
-            {isProfileMenuOpen ? (
-              <div className="profile-menu-popover" role="menu" aria-label="Profile options">
-                <button
-                  className="profile-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={handleOpenProfileView}
-                >
-                  Edit Profile
-                </button>
-                <button
-                  className="profile-menu-item logout"
-                  type="button"
-                  role="menuitem"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
       </header>
+      <div className="topbar-actions">
+        <div className="profile-menu" ref={profileMenuRef}>
+          <button
+            className="profile-menu-button"
+            type="button"
+            aria-label="Open profile menu"
+            aria-haspopup="menu"
+            aria-expanded={isProfileMenuOpen}
+            onClick={() => setIsProfileMenuOpen((currentValue) => !currentValue)}
+          >
+            <AvatarBadge
+              imageUrl={sessionAvatarUrl}
+              label={sessionUsername || sessionEmail || "Your profile"}
+              className="profile-menu-avatar"
+            />
+          </button>
+
+          {isProfileMenuOpen ? (
+            <div className="profile-menu-popover" role="menu" aria-label="Profile options">
+              <button
+                className="profile-menu-item"
+                type="button"
+                role="menuitem"
+                onClick={handleOpenProfileView}
+              >
+                Edit Profile
+              </button>
+              <button
+                className="profile-menu-item logout"
+                type="button"
+                role="menuitem"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       {pageError ? <div className="error-banner">{pageError}</div> : null}
 
@@ -1843,6 +1843,12 @@ export default function App() {
                               <span>{order.qty} share{order.qty === 1 ? "" : "s"}</span>
                               <span className="order-history-sep">·</span>
                               <span>Limit {formatCurrency(order.limit_price_cents)}</span>
+                              {order.avg_fill_price_cents != null ? (
+                                <>
+                                  <span className="order-history-sep">·</span>
+                                  <span>Filled @ {formatCurrency(order.avg_fill_price_cents)}</span>
+                                </>
+                              ) : null}
                               {order.status === "PARTIALLY_FILLED" ? (
                                 <>
                                   <span className="order-history-sep">·</span>

@@ -699,7 +699,7 @@ button {
 
 .topbar-actions {
   position: absolute;
-  top: clamp(1.1rem, 2.2vw, 1.35rem);
+  top: calc(24px + clamp(1.1rem, 2.2vw, 1.35rem));
   right: clamp(1rem, 1.6vw, 1.25rem);
   display: flex;
   justify-content: flex-end;
@@ -1445,13 +1445,6 @@ button {
     padding: 1rem;
   }
 
-  .topbar-actions {
-    position: static;
-    width: 100%;
-    margin-top: 12px;
-    justify-content: flex-end;
-  }
-
   .auth-layout {
     grid-template-columns: 1fr;
     padding-top: 76px;
@@ -1488,6 +1481,11 @@ button {
   .app-shell {
     width: min(100%, calc(100% - 20px));
     padding: 10px 0 28px;
+  }
+
+  .topbar-actions {
+    top: calc(10px + clamp(1.1rem, 2.2vw, 1.35rem));
+    right: 0.75rem;
   }
 
   .profile-menu-popover {
