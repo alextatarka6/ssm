@@ -5,7 +5,7 @@ const message = (detail) => ({ detail });
 // General limit for all API routes
 const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 120,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: message("Too many requests. Please try again later."),

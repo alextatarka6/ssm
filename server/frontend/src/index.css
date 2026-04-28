@@ -1805,6 +1805,23 @@ button {
   margin-bottom: 6px;
 }
 
+.order-book-side-header {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding: 0 6px;
+}
+
+.order-book-ask-header {
+  color: var(--color-sell, #c0392b);
+}
+
+.order-book-bid-header {
+  color: var(--color-buy, #27ae60);
+}
+
 .order-book-row {
   position: relative;
   display: flex;
@@ -1816,6 +1833,15 @@ button {
   border-radius: 3px;
   overflow: hidden;
   margin-bottom: 2px;
+}
+
+.order-book-row-clickable {
+  cursor: pointer;
+}
+
+.order-book-row-clickable:hover {
+  outline: 1px solid currentColor;
+  outline-offset: -1px;
 }
 
 .order-book-bar {

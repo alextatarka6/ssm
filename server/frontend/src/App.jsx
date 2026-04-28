@@ -908,16 +908,6 @@ export default function App() {
       return;
     }
 
-    if (orderSide === "SELL" && orderQuantityValue > availableShares) {
-      setTradingError(`You only have ${availableShares} share${availableShares === 1 ? "" : "s"} available to sell.`);
-      return;
-    }
-
-    if (orderSide === "BUY" && estimatedOrderValueCents !== null && estimatedOrderValueCents > availableCashCents) {
-      setTradingError("This order costs more cash than is currently available in the account.");
-      return;
-    }
-
     try {
       setIsSubmittingOrder(true);
       setTradingError(null);
@@ -1199,8 +1189,8 @@ export default function App() {
     !activeAsset ||
     !orderQuantityValue ||
     !orderLimitPriceCents ||
-    hasInsufficientCash ||
-    hasInsufficientShares;
+    hasInsufficientShares ||
+    hasInsufficientCash;
   const topbarTitle = currentView === "profile" ? "Edit Profile" : "Section Stock Market";
   const topbarEyebrow = currentView === "profile" ? "Cast Update" : "Now Presenting";
   const topbarSubtitle =
@@ -1801,23 +1791,6 @@ export default function App() {
                           </p>
                         ) : null}
 
-                        {orderSide === "BUY" && hasInsufficientCash ? (
-                          <div className="helper-banner">
-                            This buy order is larger than the cash currently available in the account.
-                          </div>
-                        ) : null}
-
-                        {orderSide === "SELL" && availableShares === 0 ? (
-                          <div className="helper-banner">
-                            There are no unreserved shares of this stock available to sell right now.
-                          </div>
-                        ) : null}
-
-                        {orderSide === "SELL" && hasInsufficientShares ? (
-                          <div className="helper-banner">
-                            The order quantity is higher than the number of shares available to sell.
-                          </div>
-                        ) : null}
 
                         {tradingNotice ? <div className="helper-banner">{tradingNotice}</div> : null}
                         {tradingError ? <div className="error-banner trade-message">{tradingError}</div> : null}
@@ -1848,6 +1821,7 @@ export default function App() {
                       <span className="order-book-col-label">Price</span>
                       <span className="order-book-col-label">Qty</span>
                     </div>
+                    <div className="order-book-side-header order-book-ask-header">Current Sell Orders</div>
                     <div className="order-book-side order-book-asks">
                       {!orderBook || orderBook.asks.length === 0 ? (
                         <div className="order-book-empty">No sell orders</div>
@@ -1875,6 +1849,7 @@ export default function App() {
                         <span>—</span>
                       )}
                     </div>
+                    <div className="order-book-side-header order-book-bid-header">Current Buy Orders</div>
                     <div className="order-book-side order-book-bids">
                       {!orderBook || orderBook.bids.length === 0 ? (
                         <div className="order-book-empty">No buy orders</div>
@@ -1882,7 +1857,15 @@ export default function App() {
                         const levels = orderBook.bids.slice(0, 10);
                         const maxQty = Math.max(...levels.map((l) => l.qty));
                         return levels.map((level) => (
-                          <div key={level.price_cents} className="order-book-row order-book-bid-row">
+                          <div
+                            key={level.price_cents}
+                            className="order-book-row order-book-bid-row order-book-row-clickable"
+                            onClick={() => {
+                              setOrderSide("BUY");
+                              setOrderQuantity(String(level.qty));
+                              setOrderLimitPrice(formatPriceInput(level.price_cents));
+                            }}
+                          >
                             <div className="order-book-bar" style={{ width: `${Math.round((level.qty / maxQty) * 100)}%` }} />
                             <span className="order-book-price">{formatCurrency(level.price_cents)}</span>
                             <span className="order-book-qty">{level.qty}</span>
