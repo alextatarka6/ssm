@@ -76,6 +76,10 @@ export function getAssetCandles(assetId) {
   return fetchJson(`/assets/${encodeURIComponent(assetId)}/candles?interval_trades=5&limit=50`);
 }
 
+export function getAssetOrderBook(assetId) {
+  return fetchJson(`/assets/${encodeURIComponent(assetId)}/orderbook`);
+}
+
 export function placeOrder(order) {
   return fetchJson("/orders/", {
     method: "POST",

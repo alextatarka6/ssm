@@ -74,6 +74,15 @@ export async function getAssetCandles(assetId) {
   return generateCandles(asset?.last_price_cents ?? 5000);
 }
 
+export async function getAssetOrderBook(assetId) {
+  await delay(150);
+  const asset = ASSETS.find((a) => a.asset_id === assetId);
+  const base = asset?.last_price_cents ?? 5000;
+  const bids = [1, 2, 3, 4, 5].map((i) => ({ price_cents: Math.round(base * (1 - i * 0.01)), qty: Math.floor(Math.random() * 8) + 1 }));
+  const asks = [1, 2, 3, 4, 5].map((i) => ({ price_cents: Math.round(base * (1 + i * 0.01)), qty: Math.floor(Math.random() * 8) + 1 }));
+  return { bids, asks };
+}
+
 export async function placeOrder(order) {
   await delay(400);
   const newOrder = {

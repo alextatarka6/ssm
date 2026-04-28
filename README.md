@@ -57,6 +57,15 @@ npm run frontend:dev
 
 Starts Vite on `http://localhost:5173`, proxying API calls to the backend.
 
+**Run with mock data (no backend or Supabase needed):**
+
+```bash
+cd server
+npm run frontend:dev:mock
+```
+
+This swaps in `src/api.mock.js` and `src/utils/supabase.mock.js` via a Vite alias, so the app runs entirely with local stub data. No `.env` required.
+
 **Build:**
 
 ```bash

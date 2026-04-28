@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "frontend:dev": "npm install --prefix frontend && npm run dev --prefix frontend",
+    "frontend:dev:mock": "npm install --prefix frontend && npm run dev:mock --prefix frontend",
     "frontend:build": "npm install --prefix frontend && npm run build --prefix frontend"
   },
   "engines": {

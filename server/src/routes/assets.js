@@ -18,5 +18,6 @@ router.get("/:assetId", validateAssetIdParam, controller.getAsset);
 router.put("/:assetId", validateUpdateAsset, asyncHandler(controller.updateAsset));
 router.get("/:assetId/trades", validateTradesQuery, controller.getAssetTrades);
 router.get("/:assetId/candles", validateCandlesQuery, controller.getAssetCandles);
+router.get("/:assetId/orderbook", validateAssetIdParam, controller.getAssetOrderBook);
 
 module.exports = router;

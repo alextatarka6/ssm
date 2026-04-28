@@ -7,6 +7,7 @@ const MOCK_SESSION = {
 const listeners = new Set();
 
 export const supabase = {
+  _initialUser: MOCK_SESSION.user,
   auth: {
     getSession: async () => ({ data: { session: MOCK_SESSION }, error: null }),
     onAuthStateChange: (callback) => {

@@ -590,10 +590,14 @@ button {
   max-width: 1280px;
 }
 
+.topbar-container {
+  position: relative;
+  margin-bottom: 30px;
+}
+
 .topbar {
   position: relative;
   overflow: hidden;
-  margin-bottom: 30px;
   padding: clamp(1.25rem, 2vw, 1.5rem);
   border-radius: 36px;
   background:
@@ -699,7 +703,7 @@ button {
 
 .topbar-actions {
   position: absolute;
-  top: calc(24px + clamp(1.1rem, 2.2vw, 1.35rem));
+  top: clamp(1.25rem, 2vw, 1.5rem);
   right: clamp(1rem, 1.6vw, 1.25rem);
   display: flex;
   justify-content: flex-end;
@@ -1484,7 +1488,7 @@ button {
   }
 
   .topbar-actions {
-    top: calc(10px + clamp(1.1rem, 2.2vw, 1.35rem));
+    top: 1rem;
     right: 0.75rem;
   }
 
@@ -1745,4 +1749,131 @@ button {
 
 .admin-pause-resume {
   color: var(--color-buy, #27ae60);
+}
+
+/* Collapse toggle */
+.collapse-toggle {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.collapse-toggle:hover {
+  background: rgba(138, 111, 96, 0.1);
+}
+
+/* Order book */
+.order-book-panel {
+  margin-top: 0;
+}
+
+.order-book-body {
+  padding: 0 clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2vw, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.order-book-cols {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(138, 111, 96, 0.12);
+}
+
+.order-book-col-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.order-book-side-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.order-book-row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.order-book-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 3px;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.order-book-ask-row .order-book-bar {
+  background: var(--color-danger, #a95d62);
+}
+
+.order-book-bid-row .order-book-bar {
+  background: var(--color-success, #1a9e6e);
+}
+
+.order-book-price {
+  position: relative;
+  font-weight: 600;
+}
+
+.order-book-ask-row .order-book-price {
+  color: var(--color-sell, #c0392b);
+}
+
+.order-book-bid-row .order-book-price {
+  color: var(--color-buy, #27ae60);
+}
+
+.order-book-qty {
+  position: relative;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.order-book-spread {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  padding: 6px 0;
+  border-top: 1px solid rgba(138, 111, 96, 0.1);
+  border-bottom: 1px solid rgba(138, 111, 96, 0.1);
+  margin: 6px 0;
+}
+
+.order-book-spread-pct {
+  opacity: 0.7;
+}
+
+.order-book-empty {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  padding: 4px 6px;
 }

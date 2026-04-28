@@ -531,6 +531,10 @@ class Market {
         continue;
       }
 
+      if (holding.shares <= 0 && holding.reservedShares <= 0) {
+        continue;
+      }
+
       holdings.push({
         asset_id: holding.assetId,
         shares: holding.shares,
@@ -547,6 +551,29 @@ class Market {
       cash_cents: user.cashCents,
       reserved_cash_cents: user.reservedCashCents,
       holdings,
+    };
+  }
+
+  getOrderBook(assetId) {
+    this._requireAsset(assetId);
+    const bids = new Map();
+    const asks = new Map();
+
+    for (const order of this.orders.values()) {
+      if (order.assetId !== assetId) continue;
+      if (order.status !== OrderStatus.OPEN && order.status !== OrderStatus.PARTIALLY_FILLED) continue;
+      if (order.remainingQty <= 0) continue;
+
+      if (order.side === Side.BUY) {
+        bids.set(order.limitPriceCents, (bids.get(order.limitPriceCents) || 0) + order.remainingQty);
+      } else {
+        asks.set(order.limitPriceCents, (asks.get(order.limitPriceCents) || 0) + order.remainingQty);
+      }
+    }
+
+    return {
+      bids: [...bids.entries()].sort((a, b) => b[0] - a[0]).map(([price_cents, qty]) => ({ price_cents, qty })),
+      asks: [...asks.entries()].sort((a, b) => a[0] - b[0]).map(([price_cents, qty]) => ({ price_cents, qty })),
     };
   }
 

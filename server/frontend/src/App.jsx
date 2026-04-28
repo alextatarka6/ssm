@@ -4,6 +4,7 @@ import {
   createUser,
   deleteCurrentProfile,
   getAssetCandles,
+  getAssetOrderBook,
   getAssets,
   getLeaderboard,
   getUserAccountBalances,
@@ -18,6 +19,7 @@ import {
 import StockChart from "./components/StockChart";
 import { getFrontendConfig, getFrontendConfigError } from "./config";
 import { supabase } from "./utils/supabase";
+import { UPDATE_LOG } from "./updateLog";
 
 
 function formatCurrency(cents) {
@@ -217,14 +219,15 @@ function RibbonLabel({ as: Tag = "div", text, textAs: TextTag = "span", classNam
 export default function App() {
   const frontendConfigError = getFrontendConfigError();
   const { adminUserId } = getFrontendConfig();
+  const isDevMode = import.meta.env.VITE_DEV_MODE === "true";
   const [authMode, setAuthMode] = useState("register");
   const [currentView, setCurrentView] = useState("dashboard");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
-  const [sessionUserId, setSessionUserId] = useState(null);
-  const [sessionUsername, setSessionUsername] = useState(null);
+  const [sessionUserId, setSessionUserId] = useState(isDevMode ? "mock-user-123" : null);
+  const [sessionUsername, setSessionUsername] = useState(isDevMode ? "TestUser" : null);
   const [sessionEmail, setSessionEmail] = useState(null);
   const [sessionAvatarUrl, setSessionAvatarUrl] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
@@ -237,7 +240,7 @@ export default function App() {
   const [pageError, setPageError] = useState(null);
   const [tradingNotice, setTradingNotice] = useState(null);
   const [tradingError, setTradingError] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(isDevMode);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [isLoadingCandles, setIsLoadingCandles] = useState(false);
@@ -270,6 +273,8 @@ export default function App() {
   const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
   const [marketPaused, setMarketPaused] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
+  const [orderBook, setOrderBook] = useState(null);
+  const [isMarketPanelCollapsed, setIsMarketPanelCollapsed] = useState(false);
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
@@ -277,7 +282,7 @@ export default function App() {
     if (!portfolio) {
       return [];
     }
-    return portfolio.holdings || [];
+    return (portfolio.holdings || []).filter((h) => h.shares > 0);
   }, [portfolio]);
 
   const assetsById = useMemo(
@@ -980,6 +985,11 @@ export default function App() {
   }, [activeAssetId]);
 
   useEffect(() => {
+    if (isDevMode) {
+      void loadDashboard(sessionUserId, { createIfMissing: false });
+      return;
+    }
+
     let isMounted = true;
 
     async function initializeAuth() {
@@ -1075,6 +1085,7 @@ export default function App() {
   useEffect(() => {
     if (!activeAssetId || !sessionUserId) {
       setCandles(null);
+      setOrderBook(null);
       return;
     }
 
@@ -1094,7 +1105,20 @@ export default function App() {
       }
     }
 
+    async function loadOrderBook() {
+      try {
+        const result = await getAssetOrderBook(activeAssetId);
+        setOrderBook(result);
+      } catch {
+        setOrderBook(null);
+      }
+    }
+
     loadCandles();
+    loadOrderBook();
+
+    const orderBookInterval = setInterval(loadOrderBook, 3000);
+    return () => clearInterval(orderBookInterval);
   }, [activeAssetId, sessionUserId]);
 
   useEffect(() => {
@@ -1380,6 +1404,7 @@ export default function App() {
           Update Log
         </button>
       </div>
+      <div className="topbar-container">
       <header className="topbar">
         <div className="topbar-accent topbar-accent-left" aria-hidden="true" />
         <div className="topbar-accent topbar-accent-right" aria-hidden="true" />
@@ -1440,6 +1465,7 @@ export default function App() {
             </div>
           ) : null}
         </div>
+      </div>
       </div>
 
       {pageError ? <div className="error-banner">{pageError}</div> : null}
@@ -1808,17 +1834,86 @@ export default function App() {
                   )}
                 </div>
               </section>
+
+              {activeAsset ? (
+                <section className="panel order-book-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Order Book</h2>
+                      <p className="panel-copy">Live resting buy and sell orders for this stock.</p>
+                    </div>
+                  </div>
+                  <div className="order-book-body">
+                    <div className="order-book-cols">
+                      <span className="order-book-col-label">Price</span>
+                      <span className="order-book-col-label">Qty</span>
+                    </div>
+                    <div className="order-book-side order-book-asks">
+                      {!orderBook || orderBook.asks.length === 0 ? (
+                        <div className="order-book-empty">No sell orders</div>
+                      ) : (() => {
+                        const levels = [...orderBook.asks.slice(0, 10)].reverse();
+                        const maxQty = Math.max(...levels.map((l) => l.qty));
+                        return levels.map((level) => (
+                          <div key={level.price_cents} className="order-book-row order-book-ask-row">
+                            <div className="order-book-bar" style={{ width: `${Math.round((level.qty / maxQty) * 100)}%` }} />
+                            <span className="order-book-price">{formatCurrency(level.price_cents)}</span>
+                            <span className="order-book-qty">{level.qty}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    <div className="order-book-spread">
+                      {orderBook && orderBook.asks.length > 0 && orderBook.bids.length > 0 ? (
+                        <>
+                          <span>Spread: {formatCurrency(orderBook.asks[0].price_cents - orderBook.bids[0].price_cents)}</span>
+                          <span className="order-book-spread-pct">
+                            {(((orderBook.asks[0].price_cents - orderBook.bids[0].price_cents) / orderBook.bids[0].price_cents) * 100).toFixed(2)}%
+                          </span>
+                        </>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </div>
+                    <div className="order-book-side order-book-bids">
+                      {!orderBook || orderBook.bids.length === 0 ? (
+                        <div className="order-book-empty">No buy orders</div>
+                      ) : (() => {
+                        const levels = orderBook.bids.slice(0, 10);
+                        const maxQty = Math.max(...levels.map((l) => l.qty));
+                        return levels.map((level) => (
+                          <div key={level.price_cents} className="order-book-row order-book-bid-row">
+                            <div className="order-book-bar" style={{ width: `${Math.round((level.qty / maxQty) * 100)}%` }} />
+                            <span className="order-book-price">{formatCurrency(level.price_cents)}</span>
+                            <span className="order-book-qty">{level.qty}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
             </div>
 
             <section className="panel market-panel">
               <div className="panel-header">
                 <div>
                   <h2>Market</h2>
-                  <p className="panel-copy">
-                    Other stocks available in the system, including ones this user does not own.
-                  </p>
+                  {!isMarketPanelCollapsed && (
+                    <p className="panel-copy">
+                      Other stocks available in the system, including ones this user does not own.
+                    </p>
+                  )}
                 </div>
                 <div className="market-panel-controls">
+                  <button
+                    type="button"
+                    className="collapse-toggle"
+                    onClick={() => setIsMarketPanelCollapsed((v) => !v)}
+                    aria-label={isMarketPanelCollapsed ? "Expand market panel" : "Collapse market panel"}
+                  >
+                    {isMarketPanelCollapsed ? "▸" : "▾"}
+                  </button>
                   <div className="leaderboard-stats">
                     <div className="leaderboard-stat">
                       <span>Top Cash</span>
@@ -1840,37 +1935,41 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="positions">
-                {assets.length === 0 ? (
-                  <div className="empty-state">No market assets are available yet.</div>
-                ) : filteredMarketAssets.length === 0 ? (
-                  <div className="empty-state">No stocks match that username.</div>
-                ) : (
-                  filteredMarketAssets.map((asset) => {
-                    const owned = holdingAssetIds.has(asset.asset_id);
-                    const issuedByUser = asset.issuer_user_id === sessionUserId;
-                    return (
-                      <article
-                        key={asset.asset_id}
-                        className={asset.asset_id === activeAssetId ? "position-card selected" : "position-card"}
-                        onClick={() => setActiveAssetId(asset.asset_id)}
-                      >
-                        <div className="card-label-row">
-                          <h3>{formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}</h3>
-                          {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
-                          {owned ? <span className="card-badge">Owned</span> : null}
-                        </div>
-                        <p>Buyable shares: {(asset.sell_order_shares || 0) + (asset.treasury_available_shares || 0)}</p>
-                        <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
+              {!isMarketPanelCollapsed && (
+                <>
+                  <div className="positions">
+                    {assets.length === 0 ? (
+                      <div className="empty-state">No market assets are available yet.</div>
+                    ) : filteredMarketAssets.length === 0 ? (
+                      <div className="empty-state">No stocks match that username.</div>
+                    ) : (
+                      filteredMarketAssets.map((asset) => {
+                        const owned = holdingAssetIds.has(asset.asset_id);
+                        const issuedByUser = asset.issuer_user_id === sessionUserId;
+                        return (
+                          <article
+                            key={asset.asset_id}
+                            className={asset.asset_id === activeAssetId ? "position-card selected" : "position-card"}
+                            onClick={() => setActiveAssetId(asset.asset_id)}
+                          >
+                            <div className="card-label-row">
+                              <h3>{formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}</h3>
+                              {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
+                              {owned ? <span className="card-badge">Owned</span> : null}
+                            </div>
+                            <p>Buyable shares: {(asset.sell_order_shares || 0) + (asset.treasury_available_shares || 0)}</p>
+                            <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
 
-              {otherAssets.length === 0 && assets.length > 0 ? (
-                <p className="helper-copy">This user currently owns every listed stock.</p>
-              ) : null}
+                  {otherAssets.length === 0 && assets.length > 0 ? (
+                    <p className="helper-copy">This user currently owns every listed stock.</p>
+                  ) : null}
+                </>
+              )}
             </section>
 
             <section className="panel order-history-panel">
@@ -2088,31 +2187,19 @@ export default function App() {
             </div>
 
             <div className="update-log-versions">
-              <div className="update-log-version">
-                <div className="update-log-version-header">
-                  <span className="update-log-version-tag">v1.1</span>
-                  <span className="update-log-version-date">Apr 27, 2026</span>
+              {UPDATE_LOG.map((entry) => (
+                <div key={entry.version} className="update-log-version">
+                  <div className="update-log-version-header">
+                    <span className="update-log-version-tag">{entry.version}</span>
+                    <span className="update-log-version-date">{entry.date}</span>
+                  </div>
+                  <ul className="update-log-list">
+                    {entry.items.map((item, i) => (
+                      <li key={i}>{item.prefix ?? null}<strong>{item.bold}</strong>{item.suffix}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="update-log-list">
-                  <li>Everyone got a <strong>$10,000 top-up</strong> — new players now start with $15,000</li>
-                  <li><strong>Fairer pricing</strong> — stock prices now only move when real users trade each other, not when the bank steps in</li>
-                  <li><strong>Duplicate order protection</strong> — placing the same order twice in quick succession now only creates one</li>
-                  <li><strong>Suggestions</strong> — use the link at the bottom of the page to send us feedback (one per day)</li>
-                  <li><strong>Request throttling</strong> — added to keep the market running smoothly for everyone</li>
-                  <li><strong>Admin market pause</strong> — trading can now be paused and resumed by the admin</li>
-                </ul>
-              </div>
-              <div className="update-log-version">
-                <div className="update-log-version-header">
-                  <span className="update-log-version-tag">v1.0</span>
-                  <span className="update-log-version-date">Initial launch</span>
-                </div>
-                <ul className="update-log-list">
-                  <li>Live stock market with real-time trading between players</li>
-                  <li>Portfolio tracking, order history, and account balances</li>
-                  <li>Leaderboard showing top cash and top net worth</li>
-                </ul>
-              </div>
+              ))}
             </div>
 
             <div className="dialog-actions">

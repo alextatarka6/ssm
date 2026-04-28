@@ -49,6 +49,10 @@ function getAssetCandles(req, res) {
   );
 }
 
+function getAssetOrderBook(req, res) {
+  res.json(marketService.getMarket().getOrderBook(req.validated.params.assetId));
+}
+
 module.exports = {
   createAsset,
   updateAsset,
@@ -56,4 +60,5 @@ module.exports = {
   getAsset,
   getAssetTrades,
   getAssetCandles,
+  getAssetOrderBook,
 };
