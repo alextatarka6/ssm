@@ -280,6 +280,7 @@ export default function App() {
   const [devToolsUsers, setDevToolsUsers] = useState([]);
   const [selectedResetUserId, setSelectedResetUserId] = useState("");
   const [isResettingUser, setIsResettingUser] = useState(false);
+  const [devToolsOpen, setDevToolsOpen] = useState(false);
   const [orderBook, setOrderBook] = useState(null);
   const [isMarketPanelCollapsed, setIsMarketPanelCollapsed] = useState(false);
   const profileMenuRef = useRef(null);
@@ -1505,44 +1506,59 @@ export default function App() {
       ) : null}
 
       {adminUserId && sessionUserId === adminUserId ? (
-        <div className="dev-tools-panel" onMouseEnter={loadDevToolsUsers}>
-          <span className="dev-tools-label">Dev Tools</span>
+        <div className="dev-tools-panel">
+          {devToolsOpen && (
+            <div className="dev-tools-content">
+              <span className="dev-tools-label">Dev Tools</span>
+              <button
+                className={`dev-tools-button ${marketPaused ? "admin-pause-resume" : "admin-pause-pause"}`}
+                type="button"
+                disabled={isTogglingPause}
+                onClick={handleTogglePause}
+              >
+                {isTogglingPause ? "Updating..." : marketPaused ? "Resume Trading" : "Pause Trading"}
+              </button>
+              <button
+                className="dev-tools-button dev-tools-reset"
+                type="button"
+                disabled={isResettingMarket}
+                onClick={handleResetMarket}
+              >
+                {isResettingMarket ? "Resetting..." : "Reset Market"}
+              </button>
+              <div className="dev-tools-divider" />
+              <select
+                className="dev-tools-select"
+                value={selectedResetUserId}
+                onChange={(e) => setSelectedResetUserId(e.target.value)}
+              >
+                <option value="">Select user…</option>
+                {devToolsUsers.map((u) => (
+                  <option key={u.user_id} value={u.user_id}>
+                    {u.username || u.user_id}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="dev-tools-button dev-tools-reset"
+                type="button"
+                disabled={!selectedResetUserId || isResettingUser}
+                onClick={handleResetUser}
+              >
+                {isResettingUser ? "Resetting..." : "Reset User"}
+              </button>
+            </div>
+          )}
           <button
-            className={`dev-tools-button ${marketPaused ? "admin-pause-resume" : "admin-pause-pause"}`}
+            className={`dev-tools-fab${devToolsOpen ? " dev-tools-fab--open" : ""}`}
             type="button"
-            disabled={isTogglingPause}
-            onClick={handleTogglePause}
+            onClick={() => {
+              if (!devToolsOpen) loadDevToolsUsers();
+              setDevToolsOpen((o) => !o);
+            }}
+            title="Dev Tools"
           >
-            {isTogglingPause ? "Updating..." : marketPaused ? "Resume Trading" : "Pause Trading"}
-          </button>
-          <button
-            className="dev-tools-button dev-tools-reset"
-            type="button"
-            disabled={isResettingMarket}
-            onClick={handleResetMarket}
-          >
-            {isResettingMarket ? "Resetting..." : "Reset Market"}
-          </button>
-          <div className="dev-tools-divider" />
-          <select
-            className="dev-tools-select"
-            value={selectedResetUserId}
-            onChange={(e) => setSelectedResetUserId(e.target.value)}
-          >
-            <option value="">Select user…</option>
-            {devToolsUsers.map((u) => (
-              <option key={u.user_id} value={u.user_id}>
-                {u.username || u.user_id}
-              </option>
-            ))}
-          </select>
-          <button
-            className="dev-tools-button dev-tools-reset"
-            type="button"
-            disabled={!selectedResetUserId || isResettingUser}
-            onClick={handleResetUser}
-          >
-            {isResettingUser ? "Resetting..." : "Reset User"}
+            ⚙
           </button>
         </div>
       ) : null}

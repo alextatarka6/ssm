@@ -1923,12 +1923,59 @@ button {
   z-index: 100;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dev-tools-content {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   background: rgba(20, 20, 30, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 10px 12px;
   backdrop-filter: blur(8px);
+  animation: dev-tools-in 0.18s ease;
+  transform-origin: bottom left;
+}
+
+@keyframes dev-tools-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dev-tools-fab {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(20, 20, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.2s, color 0.15s;
+  line-height: 1;
+}
+
+.dev-tools-fab:hover {
+  background: rgba(40, 40, 60, 0.95);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dev-tools-fab--open {
+  transform: rotate(45deg);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .dev-tools-label {
