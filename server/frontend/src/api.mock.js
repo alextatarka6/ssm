@@ -68,10 +68,10 @@ export async function getLeaderboard() {
   };
 }
 
-export async function getAssetCandles(assetId) {
+export async function getAssetCandles(assetId, { limit = 50 } = {}) {
   await delay(300);
   const asset = ASSETS.find((a) => a.asset_id === assetId);
-  return generateCandles(asset?.last_price_cents ?? 5000);
+  return { bars: generateCandles(asset?.last_price_cents ?? 5000, limit) };
 }
 
 export async function getAssetOrderBook(assetId) {

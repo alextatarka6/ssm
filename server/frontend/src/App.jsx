@@ -24,6 +24,11 @@ import { getFrontendConfig, getFrontendConfigError } from "./config";
 import { supabase } from "./utils/supabase";
 import { UPDATE_LOG } from "./updateLog";
 
+const CHART_VIEWS = {
+  "1D": { intervalTrades: 2, limit: 25 },
+  "1W": { intervalTrades: 5, limit: 50 },
+  ALL: { intervalTrades: 10, limit: 200 },
+};
 
 function formatCurrency(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -238,6 +243,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState(null);
   const [activeAssetId, setActiveAssetId] = useState(null);
   const [candles, setCandles] = useState(null);
+  const [chartView, setChartView] = useState("1W");
   const [authError, setAuthError] = useState(null);
   const [authNotice, setAuthNotice] = useState(null);
   const [pageError, setPageError] = useState(null);
@@ -1091,7 +1097,7 @@ export default function App() {
       try {
         setIsLoadingCandles(true);
         setPageError(null);
-        const result = await getAssetCandles(activeAssetId);
+        const result = await getAssetCandles(activeAssetId, CHART_VIEWS[chartView]);
         setCandles(result.bars);
       } catch (err) {
         setCandles(null);
@@ -1117,7 +1123,7 @@ export default function App() {
 
     const orderBookInterval = setInterval(loadOrderBook, 3000);
     return () => clearInterval(orderBookInterval);
-  }, [activeAssetId, sessionUserId]);
+  }, [activeAssetId, sessionUserId, chartView]);
 
   useEffect(() => {
     if (!isProfileMenuOpen) {
@@ -1778,6 +1784,19 @@ export default function App() {
                     )}
                     <p className="panel-copy">Select one of your holdings or any market asset to inspect it.</p>
                   </div>
+                  {activeAssetId && (
+                    <div className="chart-view-toggle">
+                      {Object.keys(CHART_VIEWS).map((view) => (
+                        <button
+                          key={view}
+                          className={chartView === view ? "active" : ""}
+                          onClick={() => setChartView(view)}
+                        >
+                          {view === "ALL" ? "All" : view}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {candles ? (

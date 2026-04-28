@@ -12,7 +12,7 @@ const {
   InsufficientSharesError,
   MarketPausedError,
 } = require("../utils/errors");
-const { TREASURY_USER, Side, OrderStatus, EventType } = require("./constants");
+const { TREASURY_USER, BOT_INITIAL_CASH_CENTS, Side, OrderStatus, EventType } = require("./constants");
 
 class Market {
   constructor() {
@@ -111,14 +111,14 @@ class Market {
     };
   }
 
-  createUser({ userId, initialCashCents = 1500000, username, avatarUrl }) {
+  createUser({ userId, initialCashCents = 1500000, username, avatarUrl, isBot = false }) {
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
 
     if (this.users.has(normalizedUserId)) {
       const existingUser = this.users.get(normalizedUserId);
       if (username) existingUser.username = username;
       if (avatarUrl) existingUser.avatarUrl = avatarUrl;
-      this._ensurePersonAsset(existingUser);
+      if (!existingUser.isBot) this._ensurePersonAsset(existingUser);
       return this.serializeUser(existingUser);
     }
 
@@ -128,6 +128,7 @@ class Market {
       reservedCashCents: 0,
       username: username || null,
       avatarUrl: avatarUrl || null,
+      isBot: isBot === true,
     });
 
     this.users.set(normalizedUserId, user);
@@ -136,7 +137,7 @@ class Market {
       cashCents: initialCashCents,
     });
 
-    if (normalizedUserId !== TREASURY_USER) {
+    if (normalizedUserId !== TREASURY_USER && !user.isBot) {
       this._ensurePersonAsset(user);
     }
 
@@ -145,6 +146,7 @@ class Market {
 
   listUsers() {
     return [...this.users.values()]
+      .filter((user) => !user.isBot && user.userId !== TREASURY_USER)
       .sort((left, right) => left.userId.localeCompare(right.userId))
       .map((user) => this.serializeUser(user));
   }
@@ -306,14 +308,20 @@ class Market {
     this._requireUser(normalizedUserId);
     const stock = this._requireAsset(normalizedAssetId);
 
-    if (side === Side.BUY && stock.issuerUserId === normalizedUserId) {
-      const maxShares = Math.floor(stock.totalSupply * 0.1);
+    if (side === Side.BUY && normalizedUserId !== TREASURY_USER) {
+      const buyer = this.users.get(normalizedUserId);
+      const isIssuerOwnStock = stock.issuerUserId === normalizedUserId;
+      const capPct = isIssuerOwnStock ? 0.1 : (buyer.isBot ? 0.15 : 0.25);
+      const maxShares = Math.floor(stock.totalSupply * capPct);
       const holding = this._getHolding(normalizedUserId, normalizedAssetId);
       const pendingQty = this._getPendingBuyQty(normalizedUserId, normalizedAssetId);
       if (holding.shares + pendingQty + qty > maxShares) {
         const canBuy = Math.max(0, maxShares - holding.shares - pendingQty);
+        const label = isIssuerOwnStock
+          ? "Issuers may only hold up to 10% of their own stock"
+          : `Users may hold at most ${Math.round(capPct * 100)}% of any single stock`;
         throw new ValidationError(
-          `Issuers may only hold up to 10% of their own stock (${maxShares} shares). You can buy at most ${canBuy} more share${canBuy === 1 ? "" : "s"}.`,
+          `${label} (${maxShares} shares). You can buy at most ${canBuy} more share${canBuy === 1 ? "" : "s"}.`,
         );
       }
     }
@@ -610,7 +618,7 @@ class Market {
     // Reset cash and reserved cash for all non-treasury users
     for (const user of this.users.values()) {
       if (user.userId === TREASURY_USER) continue;
-      user.cashCents = INITIAL_CASH_CENTS;
+      user.cashCents = user.isBot ? BOT_INITIAL_CASH_CENTS : INITIAL_CASH_CENTS;
       user.reservedCashCents = 0;
     }
 
@@ -657,6 +665,7 @@ class Market {
   resetUser(userId) {
     const user = this._requireUser(userId);
     if (userId === TREASURY_USER) throw new ValidationError("Cannot reset the treasury user.");
+    if (user.isBot) throw new ValidationError("Cannot reset a bot user.");
 
     const INITIAL_CASH_CENTS = 1_500_000;
     const INITIAL_ISSUER_PCT = 0.1;
@@ -708,6 +717,7 @@ class Market {
 
     for (const user of this.users.values()) {
       if (user.userId === TREASURY_USER) continue;
+      if (user.isBot) continue;
 
       const cashCents = user.cashCents;
       let netWorthCents = cashCents;
@@ -778,6 +788,7 @@ class Market {
       cash_cents: user.cashCents,
       reserved_cash_cents: user.reservedCashCents,
       username: user.username || null,
+      is_bot: user.isBot || false,
     };
   }
 
@@ -1214,6 +1225,7 @@ class Market {
     const BONUS_CENTS = 1_000_000; // $10,000 top-up to bring old $5k users to $15k
     for (const user of this.users.values()) {
       if (user.userId === TREASURY_USER) continue;
+      if (user.isBot) continue;
       user.cashCents += BONUS_CENTS;
     }
 
@@ -1238,6 +1250,7 @@ class Market {
 
   _ensurePersonAsset(user) {
     if (user.userId === TREASURY_USER) return;
+    if (user.isBot) return;
     const alreadyHasStock = [...this.stocks.values()].some((s) => s.issuerUserId === user.userId);
     if (alreadyHasStock) return;
 

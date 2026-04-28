@@ -1,4 +1,5 @@
 const TREASURY_USER = "TREASURY";
+const BOT_INITIAL_CASH_CENTS = 500_000; // $5,000 starting cash per bot
 
 const Side = Object.freeze({
   BUY: "BUY",
@@ -25,6 +26,7 @@ const EventType = Object.freeze({
 
 module.exports = {
   TREASURY_USER,
+  BOT_INITIAL_CASH_CENTS,
   Side,
   OrderStatus,
   EventType,

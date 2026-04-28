@@ -76,8 +76,8 @@ export function getLeaderboard() {
   return fetchJson("/market/leaderboard");
 }
 
-export function getAssetCandles(assetId) {
-  return fetchJson(`/assets/${encodeURIComponent(assetId)}/candles?interval_trades=5&limit=50`);
+export function getAssetCandles(assetId, { intervalTrades = 5, limit = 50 } = {}) {
+  return fetchJson(`/assets/${encodeURIComponent(assetId)}/candles?interval_trades=${intervalTrades}&limit=${limit}`);
 }
 
 export function getAssetOrderBook(assetId) {
