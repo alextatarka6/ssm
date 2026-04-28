@@ -12,6 +12,9 @@ import {
   getUserPortfolio,
   placeOrder,
   setMarketPaused as setMarketPausedApi,
+  resetMarket as resetMarketApi,
+  resetUser as resetUserApi,
+  listAllUsers,
   submitSuggestion,
   updateAsset,
   updateUser,
@@ -273,6 +276,10 @@ export default function App() {
   const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
   const [marketPaused, setMarketPaused] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
+  const [isResettingMarket, setIsResettingMarket] = useState(false);
+  const [devToolsUsers, setDevToolsUsers] = useState([]);
+  const [selectedResetUserId, setSelectedResetUserId] = useState("");
+  const [isResettingUser, setIsResettingUser] = useState(false);
   const [orderBook, setOrderBook] = useState(null);
   const [isMarketPanelCollapsed, setIsMarketPanelCollapsed] = useState(false);
   const profileMenuRef = useRef(null);
@@ -1213,6 +1220,48 @@ export default function App() {
     }
   }
 
+  async function handleResetMarket() {
+    if (!window.confirm("Reset the market? This will cancel all orders, clear trade history, and restore everyone's starting cash and shares.")) return;
+    setIsResettingMarket(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated.");
+      await resetMarketApi(session.access_token);
+      await refreshDashboard({ preferredAssetId: activeAssetId });
+    } catch (err) {
+      setPageError(err.message || "Failed to reset market.");
+    } finally {
+      setIsResettingMarket(false);
+    }
+  }
+
+  async function handleResetUser() {
+    if (!selectedResetUserId) return;
+    const user = devToolsUsers.find((u) => u.user_id === selectedResetUserId);
+    const label = user?.username || selectedResetUserId;
+    if (!window.confirm(`Reset ${label}? This will cancel their open orders and restore their starting cash and shares.`)) return;
+    setIsResettingUser(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated.");
+      await resetUserApi(selectedResetUserId, session.access_token);
+      await refreshDashboard({ preferredAssetId: activeAssetId });
+    } catch (err) {
+      setPageError(err.message || "Failed to reset user.");
+    } finally {
+      setIsResettingUser(false);
+    }
+  }
+
+  async function loadDevToolsUsers() {
+    try {
+      const users = await listAllUsers();
+      setDevToolsUsers(users.filter((u) => u.user_id !== "TREASURY"));
+    } catch {
+      // non-critical, silently ignore
+    }
+  }
+
   function handleOpenSuggestionDialog() {
     setSuggestionText("");
     setSuggestionSuccess(false);
@@ -1433,17 +1482,6 @@ export default function App() {
               >
                 Edit Profile
               </button>
-              {adminUserId && sessionUserId === adminUserId ? (
-                <button
-                  className={`profile-menu-item admin-pause-item ${marketPaused ? "admin-pause-resume" : "admin-pause-pause"}`}
-                  type="button"
-                  role="menuitem"
-                  disabled={isTogglingPause}
-                  onClick={handleTogglePause}
-                >
-                  {isTogglingPause ? "Updating..." : marketPaused ? "Resume Trading" : "Pause Trading"}
-                </button>
-              ) : null}
               <button
                 className="profile-menu-item logout"
                 type="button"
@@ -1463,6 +1501,49 @@ export default function App() {
       {marketPaused ? (
         <div className="market-pause-banner" role="alert">
           Trading is paused — no new orders can be placed right now.
+        </div>
+      ) : null}
+
+      {adminUserId && sessionUserId === adminUserId ? (
+        <div className="dev-tools-panel" onMouseEnter={loadDevToolsUsers}>
+          <span className="dev-tools-label">Dev Tools</span>
+          <button
+            className={`dev-tools-button ${marketPaused ? "admin-pause-resume" : "admin-pause-pause"}`}
+            type="button"
+            disabled={isTogglingPause}
+            onClick={handleTogglePause}
+          >
+            {isTogglingPause ? "Updating..." : marketPaused ? "Resume Trading" : "Pause Trading"}
+          </button>
+          <button
+            className="dev-tools-button dev-tools-reset"
+            type="button"
+            disabled={isResettingMarket}
+            onClick={handleResetMarket}
+          >
+            {isResettingMarket ? "Resetting..." : "Reset Market"}
+          </button>
+          <div className="dev-tools-divider" />
+          <select
+            className="dev-tools-select"
+            value={selectedResetUserId}
+            onChange={(e) => setSelectedResetUserId(e.target.value)}
+          >
+            <option value="">Select user…</option>
+            {devToolsUsers.map((u) => (
+              <option key={u.user_id} value={u.user_id}>
+                {u.username || u.user_id}
+              </option>
+            ))}
+          </select>
+          <button
+            className="dev-tools-button dev-tools-reset"
+            type="button"
+            disabled={!selectedResetUserId || isResettingUser}
+            onClick={handleResetUser}
+          >
+            {isResettingUser ? "Resetting..." : "Reset User"}
+          </button>
         </div>
       ) : null}
 
@@ -1881,41 +1962,45 @@ export default function App() {
             <section className="panel market-panel">
               <div className="panel-header">
                 <div>
-                  <h2>Market</h2>
+                  <div className="market-panel-title-row">
+                    <h2>Market</h2>
+                    <button
+                      type="button"
+                      className="collapse-toggle"
+                      onClick={() => setIsMarketPanelCollapsed((v) => !v)}
+                      aria-label={isMarketPanelCollapsed ? "Expand market panel" : "Collapse market panel"}
+                    >
+                      {isMarketPanelCollapsed ? "▸" : "▾"}
+                    </button>
+                  </div>
                   {!isMarketPanelCollapsed && (
                     <p className="panel-copy">
                       Other stocks available in the system, including ones this user does not own.
                     </p>
                   )}
                 </div>
-                <div className="market-panel-controls">
-                  <button
-                    type="button"
-                    className="collapse-toggle"
-                    onClick={() => setIsMarketPanelCollapsed((v) => !v)}
-                    aria-label={isMarketPanelCollapsed ? "Expand market panel" : "Collapse market panel"}
-                  >
-                    {isMarketPanelCollapsed ? "▸" : "▾"}
-                  </button>
-                  <div className="leaderboard-stats">
-                    <div className="leaderboard-stat">
-                      <span>Top Cash</span>
-                      <strong>{leaderboard?.top_cash ? `${leaderboard.top_cash.username} — ${formatCurrency(leaderboard.top_cash.cash_cents)}` : "—"}</strong>
+                {!isMarketPanelCollapsed && (
+                  <div className="market-panel-controls">
+                    <div className="leaderboard-stats">
+                      <div className="leaderboard-stat">
+                        <span>Top Cash</span>
+                        <strong>{leaderboard?.top_cash ? `${leaderboard.top_cash.username} — ${formatCurrency(leaderboard.top_cash.cash_cents)}` : "—"}</strong>
+                      </div>
+                      <div className="leaderboard-stat">
+                        <span>Top Net Worth</span>
+                        <strong>{leaderboard?.top_net_worth ? `${leaderboard.top_net_worth.username} — ${formatCurrency(leaderboard.top_net_worth.net_worth_cents)}` : "—"}</strong>
+                      </div>
                     </div>
-                    <div className="leaderboard-stat">
-                      <span>Top Net Worth</span>
-                      <strong>{leaderboard?.top_net_worth ? `${leaderboard.top_net_worth.username} — ${formatCurrency(leaderboard.top_net_worth.net_worth_cents)}` : "—"}</strong>
-                    </div>
+                    <input
+                      className="market-search-input"
+                      type="search"
+                      placeholder="Search by username"
+                      value={marketSearch}
+                      onChange={(event) => setMarketSearch(event.target.value)}
+                      aria-label="Search market by username"
+                    />
                   </div>
-                  <input
-                    className="market-search-input"
-                    type="search"
-                    placeholder="Search by username"
-                    value={marketSearch}
-                    onChange={(event) => setMarketSearch(event.target.value)}
-                    aria-label="Search market by username"
-                  />
-                </div>
+                )}
               </div>
 
               {!isMarketPanelCollapsed && (

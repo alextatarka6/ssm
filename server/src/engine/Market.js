@@ -587,6 +587,121 @@ class Market {
     return { paused: false };
   }
 
+  resetMarket() {
+    const INITIAL_CASH_CENTS = 1_500_000;
+
+    // Cancel all open orders and clear reserved amounts
+    for (const order of this.orders.values()) {
+      if (order.status === OrderStatus.OPEN || order.status === OrderStatus.PARTIALLY_FILLED) {
+        const user = this.users.get(order.userId);
+        if (user) {
+          if (order.side === Side.BUY) {
+            user.reservedCashCents = Math.max(0, user.reservedCashCents - order.remainingQty * order.limitPriceCents);
+          } else {
+            const holding = this._getHolding(order.userId, order.assetId);
+            holding.reservedShares = Math.max(0, holding.reservedShares - order.remainingQty);
+          }
+        }
+        order.status = OrderStatus.CANCELED;
+        order.remainingQty = 0;
+      }
+    }
+
+    // Reset cash and reserved cash for all non-treasury users
+    for (const user of this.users.values()) {
+      if (user.userId === TREASURY_USER) continue;
+      user.cashCents = INITIAL_CASH_CENTS;
+      user.reservedCashCents = 0;
+    }
+
+    // Reset holdings and last price for each stock
+    const INITIAL_ISSUER_PCT = 0.1;
+    for (const stock of this.stocks.values()) {
+      this.lastPriceCents.set(stock.assetId, 1000);
+
+      const issuerShares = Math.round(stock.totalSupply * INITIAL_ISSUER_PCT);
+      const treasuryShares = stock.totalSupply - issuerShares;
+
+      for (const holding of this.holdings.values()) {
+        if (holding.assetId !== stock.assetId) continue;
+        holding.reservedShares = 0;
+        if (holding.userId === stock.issuerUserId) {
+          holding.shares = issuerShares;
+        } else if (holding.userId === TREASURY_USER) {
+          holding.shares = treasuryShares;
+        } else {
+          holding.shares = 0;
+        }
+      }
+    }
+
+    // Reset treasury cash based on its stock holdings at initial price
+    const treasury = this.users.get(TREASURY_USER);
+    if (treasury) {
+      treasury.cashCents = 0;
+      treasury.reservedCashCents = 0;
+      for (const stock of this.stocks.values()) {
+        const treasuryShares = stock.totalSupply - Math.round(stock.totalSupply * INITIAL_ISSUER_PCT);
+        treasury.cashCents += treasuryShares * 1000;
+      }
+    }
+
+    // Clear trades and events
+    this.trades = [];
+    this.events = [];
+    this.paused = false;
+
+    return { ok: true };
+  }
+
+  resetUser(userId) {
+    const user = this._requireUser(userId);
+    if (userId === TREASURY_USER) throw new ValidationError("Cannot reset the treasury user.");
+
+    const INITIAL_CASH_CENTS = 1_500_000;
+    const INITIAL_ISSUER_PCT = 0.1;
+
+    // Cancel this user's open orders
+    for (const order of this.orders.values()) {
+      if (order.userId !== userId) continue;
+      if (order.status !== OrderStatus.OPEN && order.status !== OrderStatus.PARTIALLY_FILLED) continue;
+      if (order.side === Side.BUY) {
+        user.reservedCashCents = Math.max(0, user.reservedCashCents - order.remainingQty * order.limitPriceCents);
+      } else {
+        const holding = this._getHolding(userId, order.assetId);
+        holding.reservedShares = Math.max(0, holding.reservedShares - order.remainingQty);
+      }
+      order.status = OrderStatus.CANCELED;
+      order.remainingQty = 0;
+    }
+
+    // Reset cash
+    user.cashCents = INITIAL_CASH_CENTS;
+    user.reservedCashCents = 0;
+
+    // Reset holdings for each stock
+    for (const stock of this.stocks.values()) {
+      const holding = this._getHolding(userId, stock.assetId);
+      holding.reservedShares = 0;
+      if (stock.issuerUserId === userId) {
+        const issuerShares = Math.round(stock.totalSupply * INITIAL_ISSUER_PCT);
+        const delta = issuerShares - holding.shares;
+        holding.shares = issuerShares;
+        // Adjust treasury to absorb the difference
+        const treasury = this.users.get(TREASURY_USER);
+        if (treasury) {
+          const treasuryHolding = this._getHolding(TREASURY_USER, stock.assetId);
+          treasuryHolding.shares = Math.max(0, treasuryHolding.shares - delta);
+          treasuryHolding.reservedShares = 0;
+        }
+      } else {
+        holding.shares = 0;
+      }
+    }
+
+    return { ok: true };
+  }
+
   getLeaderboard() {
     let topCash = null;
     let topNetWorth = null;

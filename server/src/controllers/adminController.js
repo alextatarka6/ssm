@@ -10,4 +10,15 @@ async function unpauseMarket(_req, res) {
   res.json(result);
 }
 
-module.exports = { pauseMarket, unpauseMarket };
+async function resetMarket(_req, res) {
+  const result = await marketService.mutate((market) => market.resetMarket());
+  res.json(result);
+}
+
+async function resetUser(req, res) {
+  const { userId } = req.params;
+  const result = await marketService.mutate((market) => market.resetUser(userId));
+  res.json(result);
+}
+
+module.exports = { pauseMarket, unpauseMarket, resetMarket, resetUser };

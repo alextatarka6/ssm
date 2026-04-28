@@ -68,6 +68,10 @@ export function getAssets() {
   return fetchJson("/assets");
 }
 
+export function listAllUsers() {
+  return fetchJson("/users/");
+}
+
 export function getLeaderboard() {
   return fetchJson("/market/leaderboard");
 }
@@ -138,6 +142,20 @@ export function deleteCurrentProfile(accessToken) {
 
 export function setMarketPaused(paused, accessToken) {
   return fetchJson(`/admin/market/${paused ? "pause" : "unpause"}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function resetMarket(accessToken) {
+  return fetchJson("/admin/market/reset", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function resetUser(userId, accessToken) {
+  return fetchJson(`/admin/users/${encodeURIComponent(userId)}/reset`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
