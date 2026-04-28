@@ -1189,8 +1189,9 @@ export default function App() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated.");
-      const result = await setMarketPausedApi(!marketPaused, session.access_token);
-      setMarketPaused(result.paused);
+      const newPaused = !marketPaused;
+      await setMarketPausedApi(newPaused, session.access_token);
+      setMarketPaused(newPaused);
     } catch (err) {
       setPageError(err.message || "Failed to toggle market pause.");
     } finally {
