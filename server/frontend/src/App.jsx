@@ -1375,9 +1375,11 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <button type="button" className="update-log-link" onClick={() => setIsUpdateLogOpen(true)}>
-        Update Log
-      </button>
+      <div className="page-top-bar">
+        <button type="button" className="update-log-link" onClick={() => setIsUpdateLogOpen(true)}>
+          Update Log
+        </button>
+      </div>
       <header className="topbar">
         <div className="topbar-accent topbar-accent-left" aria-hidden="true" />
         <div className="topbar-accent topbar-accent-right" aria-hidden="true" />
@@ -2085,28 +2087,33 @@ export default function App() {
               <h2 id="update-log-title">Update Log</h2>
             </div>
 
-            <ul className="update-log-list">
-              <li>
-                <span className="update-log-date">Apr 27, 2026</span>
-                <span className="update-log-text">Everyone got a <strong>$10,000 top-up</strong> — new players now start with $15,000</span>
-              </li>
-              <li>
-                <span className="update-log-date">Apr 27, 2026</span>
-                <span className="update-log-text"><strong>Fairer pricing</strong> — stock prices now only move when real users trade each other, not when the bank steps in</span>
-              </li>
-              <li>
-                <span className="update-log-date">Apr 27, 2026</span>
-                <span className="update-log-text"><strong>Duplicate order protection</strong> — placing the same order twice in quick succession now only creates one</span>
-              </li>
-              <li>
-                <span className="update-log-date">Apr 27, 2026</span>
-                <span className="update-log-text"><strong>Suggestions</strong> — use the link at the bottom of the page to send us feedback (one per day)</span>
-              </li>
-              <li>
-                <span className="update-log-date">Apr 27, 2026</span>
-                <span className="update-log-text"><strong>Request throttling</strong> — added to keep the market running smoothly for everyone</span>
-              </li>
-            </ul>
+            <div className="update-log-versions">
+              <div className="update-log-version">
+                <div className="update-log-version-header">
+                  <span className="update-log-version-tag">v1.1</span>
+                  <span className="update-log-version-date">Apr 27, 2026</span>
+                </div>
+                <ul className="update-log-list">
+                  <li>Everyone got a <strong>$10,000 top-up</strong> — new players now start with $15,000</li>
+                  <li><strong>Fairer pricing</strong> — stock prices now only move when real users trade each other, not when the bank steps in</li>
+                  <li><strong>Duplicate order protection</strong> — placing the same order twice in quick succession now only creates one</li>
+                  <li><strong>Suggestions</strong> — use the link at the bottom of the page to send us feedback (one per day)</li>
+                  <li><strong>Request throttling</strong> — added to keep the market running smoothly for everyone</li>
+                  <li><strong>Admin market pause</strong> — trading can now be paused and resumed by the admin</li>
+                </ul>
+              </div>
+              <div className="update-log-version">
+                <div className="update-log-version-header">
+                  <span className="update-log-version-tag">v1.0</span>
+                  <span className="update-log-version-date">Initial launch</span>
+                </div>
+                <ul className="update-log-list">
+                  <li>Live stock market with real-time trading between players</li>
+                  <li>Portfolio tracking, order history, and account balances</li>
+                  <li>Leaderboard showing top cash and top net worth</li>
+                </ul>
+              </div>
+            </div>
 
             <div className="dialog-actions">
               <button className="ghost-button" type="button" onClick={() => setIsUpdateLogOpen(false)}>

@@ -114,7 +114,7 @@ button {
   z-index: 1;
   width: min(1280px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 24px 0 42px;
+  padding: 8px 0 42px;
 }
 
 .login-shell {
@@ -1641,11 +1641,13 @@ button {
   color: var(--color-buy);
 }
 
+.page-top-bar {
+  padding: 14px 4px 18px;
+  display: flex;
+  align-items: center;
+}
+
 .update-log-link {
-  position: fixed;
-  top: 16px;
-  left: 18px;
-  z-index: 3;
   background: none;
   border: none;
   padding: 0;
@@ -1663,40 +1665,64 @@ button {
   width: min(580px, 100%);
 }
 
-.update-log-list {
-  list-style: none;
-  margin: 20px 0 0;
-  padding: 0;
+.update-log-versions {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 28px;
+  margin-top: 20px;
 }
 
-.update-log-list li {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 10px;
+.update-log-version-header {
+  display: flex;
   align-items: baseline;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(138, 111, 96, 0.12);
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.update-log-list li:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.update-log-version-tag {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent, #4f8288);
+  background: rgba(79, 130, 136, 0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
 }
 
-.update-log-date {
+.update-log-version-date {
   font-size: 0.75rem;
   color: rgba(109, 83, 73, 0.55);
   letter-spacing: 0.03em;
-  white-space: nowrap;
 }
 
-.update-log-text {
+.update-log-version + .update-log-version {
+  padding-top: 28px;
+  border-top: 1px solid rgba(138, 111, 96, 0.12);
+}
+
+.update-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-log-list li {
   font-size: 0.92rem;
   color: var(--color-text-strong);
   line-height: 1.5;
+  padding-left: 14px;
+  position: relative;
+}
+
+.update-log-list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: rgba(109, 83, 73, 0.4);
 }
 
 .market-pause-banner {
