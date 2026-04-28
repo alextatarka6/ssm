@@ -288,7 +288,7 @@ export default function App() {
   const [isResettingUser, setIsResettingUser] = useState(false);
   const [devToolsOpen, setDevToolsOpen] = useState(false);
   const [orderBook, setOrderBook] = useState(null);
-  const [isMarketPanelCollapsed, setIsMarketPanelCollapsed] = useState(false);
+  const [marketPanelExpanded, setMarketPanelExpanded] = useState(false);
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
@@ -1997,82 +1997,74 @@ export default function App() {
             <section className="panel market-panel">
               <div className="panel-header">
                 <div>
-                  <div className="market-panel-title-row">
-                    <h2>Market</h2>
-                    <button
-                      type="button"
-                      className="collapse-toggle"
-                      onClick={() => setIsMarketPanelCollapsed((v) => !v)}
-                      aria-label={isMarketPanelCollapsed ? "Expand market panel" : "Collapse market panel"}
-                    >
-                      {isMarketPanelCollapsed ? "▸" : "▾"}
-                    </button>
-                  </div>
-                  {!isMarketPanelCollapsed && (
-                    <p className="panel-copy">
-                      Other stocks available in the system, including ones this user does not own.
-                    </p>
-                  )}
+                  <h2>Market</h2>
+                  <p className="panel-copy">
+                    Other stocks available in the system, including ones this user does not own.
+                  </p>
                 </div>
-                {!isMarketPanelCollapsed && (
-                  <div className="market-panel-controls">
-                    <div className="leaderboard-stats">
-                      <div className="leaderboard-stat">
-                        <span>Top Cash</span>
-                        <strong>{leaderboard?.top_cash ? `${leaderboard.top_cash.username} — ${formatCurrency(leaderboard.top_cash.cash_cents)}` : "—"}</strong>
-                      </div>
-                      <div className="leaderboard-stat">
-                        <span>Top Net Worth</span>
-                        <strong>{leaderboard?.top_net_worth ? `${leaderboard.top_net_worth.username} — ${formatCurrency(leaderboard.top_net_worth.net_worth_cents)}` : "—"}</strong>
-                      </div>
+                <div className="market-panel-controls">
+                  <div className="leaderboard-stats">
+                    <div className="leaderboard-stat">
+                      <span>Top Cash</span>
+                      <strong>{leaderboard?.top_cash ? `${leaderboard.top_cash.username} — ${formatCurrency(leaderboard.top_cash.cash_cents)}` : "—"}</strong>
                     </div>
-                    <input
-                      className="market-search-input"
-                      type="search"
-                      placeholder="Search by username"
-                      value={marketSearch}
-                      onChange={(event) => setMarketSearch(event.target.value)}
-                      aria-label="Search market by username"
-                    />
+                    <div className="leaderboard-stat">
+                      <span>Top Net Worth</span>
+                      <strong>{leaderboard?.top_net_worth ? `${leaderboard.top_net_worth.username} — ${formatCurrency(leaderboard.top_net_worth.net_worth_cents)}` : "—"}</strong>
+                    </div>
                   </div>
+                  <input
+                    className="market-search-input"
+                    type="search"
+                    placeholder="Search by username"
+                    value={marketSearch}
+                    onChange={(event) => setMarketSearch(event.target.value)}
+                    aria-label="Search market by username"
+                  />
+                </div>
+              </div>
+
+              <div className="positions">
+                {assets.length === 0 ? (
+                  <div className="empty-state">No market assets are available yet.</div>
+                ) : filteredMarketAssets.length === 0 ? (
+                  <div className="empty-state">No stocks match that username.</div>
+                ) : (
+                  (marketPanelExpanded ? filteredMarketAssets : filteredMarketAssets.slice(0, 5)).map((asset) => {
+                    const owned = holdingAssetIds.has(asset.asset_id);
+                    const issuedByUser = asset.issuer_user_id === sessionUserId;
+                    return (
+                      <article
+                        key={asset.asset_id}
+                        className={asset.asset_id === activeAssetId ? "position-card selected" : "position-card"}
+                        onClick={() => setActiveAssetId(asset.asset_id)}
+                      >
+                        <div className="card-label-row">
+                          <h3>{formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}</h3>
+                          {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
+                          {owned ? <span className="card-badge">Owned</span> : null}
+                        </div>
+                        <p>Buyable shares: {(asset.sell_order_shares || 0) + (asset.treasury_available_shares || 0)}</p>
+                        <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
+                      </article>
+                    );
+                  })
                 )}
               </div>
 
-              {!isMarketPanelCollapsed && (
-                <>
-                  <div className="positions">
-                    {assets.length === 0 ? (
-                      <div className="empty-state">No market assets are available yet.</div>
-                    ) : filteredMarketAssets.length === 0 ? (
-                      <div className="empty-state">No stocks match that username.</div>
-                    ) : (
-                      filteredMarketAssets.map((asset) => {
-                        const owned = holdingAssetIds.has(asset.asset_id);
-                        const issuedByUser = asset.issuer_user_id === sessionUserId;
-                        return (
-                          <article
-                            key={asset.asset_id}
-                            className={asset.asset_id === activeAssetId ? "position-card selected" : "position-card"}
-                            onClick={() => setActiveAssetId(asset.asset_id)}
-                          >
-                            <div className="card-label-row">
-                              <h3>{formatAssetDisplayName(asset, { sessionUserId, sessionUsername })}</h3>
-                              {issuedByUser ? <span className="card-badge">Your Asset</span> : null}
-                              {owned ? <span className="card-badge">Owned</span> : null}
-                            </div>
-                            <p>Buyable shares: {(asset.sell_order_shares || 0) + (asset.treasury_available_shares || 0)}</p>
-                            <p>Last price: {formatCurrency(asset.last_price_cents || 0)}</p>
-                          </article>
-                        );
-                      })
-                    )}
-                  </div>
+              {filteredMarketAssets.length > 5 ? (
+                <button
+                  type="button"
+                  className="ghost-button order-history-toggle"
+                  onClick={() => setMarketPanelExpanded((e) => !e)}
+                >
+                  {marketPanelExpanded ? "Show less" : `Show ${filteredMarketAssets.length - 5} more`}
+                </button>
+              ) : null}
 
-                  {otherAssets.length === 0 && assets.length > 0 ? (
-                    <p className="helper-copy">This user currently owns every listed stock.</p>
-                  ) : null}
-                </>
-              )}
+              {otherAssets.length === 0 && assets.length > 0 ? (
+                <p className="helper-copy">This user currently owns every listed stock.</p>
+              ) : null}
             </section>
 
             <section className="panel order-history-panel">

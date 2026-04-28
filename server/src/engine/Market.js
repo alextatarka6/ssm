@@ -598,7 +598,7 @@ class Market {
   resetMarket() {
     const INITIAL_CASH_CENTS = 1_500_000;
 
-    // Cancel all open orders and clear reserved amounts
+    // Clear all orders (cancel open ones first to release reserved amounts)
     for (const order of this.orders.values()) {
       if (order.status === OrderStatus.OPEN || order.status === OrderStatus.PARTIALLY_FILLED) {
         const user = this.users.get(order.userId);
@@ -610,10 +610,9 @@ class Market {
             holding.reservedShares = Math.max(0, holding.reservedShares - order.remainingQty);
           }
         }
-        order.status = OrderStatus.CANCELED;
-        order.remainingQty = 0;
       }
     }
+    this.orders = new Map();
 
     // Reset cash and reserved cash for all non-treasury users
     for (const user of this.users.values()) {

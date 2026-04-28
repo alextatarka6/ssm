@@ -1286,11 +1286,6 @@ button {
   box-shadow: 0 1px 3px var(--color-shadow);
 }
 
-.market-panel-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .market-panel .panel-header {
   margin-bottom: 0;
@@ -1302,7 +1297,6 @@ button {
   align-items: flex-end;
   gap: 12px;
   flex-shrink: 0;
-  margin-top: 18px;
 }
 
 .leaderboard-stats {
@@ -1794,22 +1788,6 @@ button {
   color: var(--color-buy, #27ae60);
 }
 
-/* Collapse toggle */
-.collapse-toggle {
-  background: none;
-  border: none;
-  padding: 4px 6px;
-  font-size: 1rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  line-height: 1;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.collapse-toggle:hover {
-  background: rgba(138, 111, 96, 0.1);
-}
 
 /* Order book */
 .order-book-panel {
