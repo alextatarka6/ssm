@@ -1,5 +1,5 @@
 const TREASURY_USER = "TREASURY";
-const BOT_INITIAL_CASH_CENTS = 500_000; // $5,000 starting cash per bot
+const BOT_INITIAL_CASH_CENTS = 2_000_000; // $20,000 starting cash per bot
 
 const Side = Object.freeze({
   BUY: "BUY",

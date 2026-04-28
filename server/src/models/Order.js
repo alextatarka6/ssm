@@ -9,6 +9,7 @@ class Order {
     limitPriceCents,
     status,
     seq,
+    createdAt,
   }) {
     this.id = id;
     this.userId = userId;
@@ -19,6 +20,7 @@ class Order {
     this.limitPriceCents = limitPriceCents;
     this.status = status;
     this.seq = seq;
+    this.createdAt = createdAt ?? Date.now();
   }
 
   toJSON() {
@@ -32,6 +34,7 @@ class Order {
       limitPriceCents: this.limitPriceCents,
       status: this.status,
       seq: this.seq,
+      createdAt: this.createdAt,
     };
   }
 }
