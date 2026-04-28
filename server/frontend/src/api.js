@@ -131,3 +131,17 @@ export function deleteCurrentProfile(accessToken) {
     },
   });
 }
+
+export function setMarketPaused(paused, accessToken) {
+  return fetchJson(`/admin/market/${paused ? "pause" : "unpause"}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function submitSuggestion({ userId, username, text }) {
+  return fetchJson("/suggestions/", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, username, text }),
+  });
+}

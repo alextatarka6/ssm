@@ -43,6 +43,12 @@ class InsufficientSharesError extends ApiError {
   }
 }
 
+class MarketPausedError extends ApiError {
+  constructor(message = "Trading is currently paused. Check back soon.") {
+    super(503, message);
+  }
+}
+
 module.exports = {
   ApiError,
   ValidationError,
@@ -51,4 +57,5 @@ module.exports = {
   ForbiddenError,
   InsufficientFundsError,
   InsufficientSharesError,
+  MarketPausedError,
 };

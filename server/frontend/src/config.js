@@ -49,6 +49,7 @@ const frontendConfig = {
   apiKey: readClientEnv("VITE_API_KEY"),
   supabaseUrl: normalizeAbsoluteUrl(readClientEnv("VITE_SUPABASE_URL")),
   supabasePublishableKey: readClientEnv("VITE_SUPABASE_PUBLISHABLE_KEY"),
+  adminUserId: readClientEnv("VITE_ADMIN_USER_ID"),
 };
 
 const missingConfigFields = [];

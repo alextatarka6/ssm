@@ -7,6 +7,9 @@ const { corsAllowedOrigins } = require("./config");
 const routes = require("./routes");
 const requireApiKey = require("./middleware/requireApiKey");
 const requireSupabaseAuth = require("./middleware/requireSupabaseAuth");
+const requireAdmin = require("./middleware/requireAdmin");
+const { apiLimiter } = require("./middleware/rateLimiter");
+const adminRoutes = require("./routes/admin");
 const { deleteCurrentUser } = require("./controllers/usersController");
 const asyncHandler = require("./utils/asyncHandler");
 const notFoundHandler = require("./middleware/notFoundHandler");
@@ -53,8 +56,9 @@ app.get("/health", async (_req, res) => {
 
 // Registered before requireApiKey — accepts a Supabase JWT rather than the API key.
 app.delete("/api/users/me", requireSupabaseAuth, asyncHandler(deleteCurrentUser));
+app.use("/api/admin", requireAdmin, adminRoutes);
 
-app.use("/api", requireApiKey, routes);
+app.use("/api", requireApiKey, apiLimiter, routes);
 
 // Serve the pre-built React frontend. Place after /api so API routes take
 // precedence, and use a catch-all so React Router handles client-side nav.

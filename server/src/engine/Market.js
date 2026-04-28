@@ -10,6 +10,7 @@ const {
   ForbiddenError,
   InsufficientFundsError,
   InsufficientSharesError,
+  MarketPausedError,
 } = require("../utils/errors");
 const { TREASURY_USER, Side, OrderStatus, EventType } = require("./constants");
 
@@ -32,6 +33,8 @@ class Market {
       nextSeq: 1,
       nextEventId: 1,
     };
+    this.appliedMigrations = new Set();
+    this.paused = false;
   }
 
   static fromSnapshot(snapshot = {}) {
@@ -79,7 +82,11 @@ class Market {
       market.events.push(event);
     }
 
+    market.appliedMigrations = new Set(snapshot.appliedMigrations || []);
+    market.paused = snapshot.paused === true;
+
     market._migrateIssuerCap();
+    market._migrateCashBonus();
 
     for (const stock of market.stocks.values()) {
       market._rebalanceTreasuryOrders(stock.assetId);
@@ -91,6 +98,8 @@ class Market {
   toSnapshot() {
     return {
       version: 1,
+      paused: this.paused,
+      appliedMigrations: [...this.appliedMigrations],
       generators: { ...this.generators },
       users: [...this.users.values()].map((user) => user.toJSON()),
       stocks: [...this.stocks.values()].map((stock) => stock.toJSON()),
@@ -102,7 +111,7 @@ class Market {
     };
   }
 
-  createUser({ userId, initialCashCents = 500000, username, avatarUrl }) {
+  createUser({ userId, initialCashCents = 1500000, username, avatarUrl }) {
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
 
     if (this.users.has(normalizedUserId)) {
@@ -279,6 +288,8 @@ class Market {
   }
 
   placeOrder({ userId, assetId, side, qty, limitPriceCents }) {
+    if (this.paused) throw new MarketPausedError();
+
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
     const normalizedAssetId = this._normalizeRequiredString(assetId, "asset_id");
 
@@ -539,6 +550,16 @@ class Market {
     };
   }
 
+  pauseMarket() {
+    this.paused = true;
+    return { paused: true };
+  }
+
+  unpauseMarket() {
+    this.paused = false;
+    return { paused: false };
+  }
+
   getLeaderboard() {
     let topCash = null;
     let topNetWorth = null;
@@ -562,7 +583,7 @@ class Market {
       }
     }
 
-    return { top_cash: topCash, top_net_worth: topNetWorth };
+    return { top_cash: topCash, top_net_worth: topNetWorth, paused: this.paused };
   }
 
   getUserOrders(userId) {
@@ -698,6 +719,7 @@ class Market {
       resting: treasuryOrder,
       fillQty,
       tradePrice,
+      updatePrice: false,
     });
 
     treasuryOrder.status = treasuryOrder.remainingQty === 0 ? OrderStatus.FILLED : OrderStatus.PARTIALLY_FILLED;
@@ -728,20 +750,12 @@ class Market {
 
     const holding = this._getHolding(TREASURY_USER, assetId);
     const availableShares = holding.shares - holding.reservedShares;
-    const availableCash = treasury.cashCents - treasury.reservedCashCents;
 
     const sellPrice = Math.max(1, Math.round(lastPrice * 1.05));
-    const buyPrice = Math.max(1, Math.round(lastPrice * 0.95));
 
     if (availableShares > 0) {
       const qty = Math.max(1, Math.floor(availableShares * 0.1));
       this._placeTreasuryOrder(assetId, Side.SELL, qty, sellPrice);
-    }
-
-    if (availableCash >= buyPrice) {
-      const maxQty = Math.floor(availableCash / buyPrice);
-      const qty = Math.max(1, Math.floor(maxQty * 0.1));
-      this._placeTreasuryOrder(assetId, Side.BUY, qty, buyPrice);
     }
   }
 
@@ -779,7 +793,8 @@ class Market {
 
       const fillQty = Math.min(incoming.remainingQty, resting.remainingQty);
       const tradePrice = resting.limitPriceCents;
-      trades.push(this._executeTrade({ incoming, resting, fillQty, tradePrice }));
+      const updatePrice = incoming.userId !== TREASURY_USER && resting.userId !== TREASURY_USER;
+      trades.push(this._executeTrade({ incoming, resting, fillQty, tradePrice, updatePrice }));
 
       if (resting.remainingQty === 0) {
         resting.status = OrderStatus.FILLED;
@@ -791,7 +806,7 @@ class Market {
     return trades;
   }
 
-  _executeTrade({ incoming, resting, fillQty, tradePrice }) {
+  _executeTrade({ incoming, resting, fillQty, tradePrice, updatePrice = true }) {
     const buyer = incoming.side === Side.BUY ? incoming : resting;
     const seller = incoming.side === Side.SELL ? incoming : resting;
     const notional = tradePrice * fillQty;
@@ -812,7 +827,9 @@ class Market {
       incoming.status = OrderStatus.FILLED;
     }
 
-    this.lastPriceCents.set(incoming.assetId, tradePrice);
+    if (updatePrice) {
+      this.lastPriceCents.set(incoming.assetId, tradePrice);
+    }
 
     const trade = new Trade({
       id: this.generators.nextTradeId++,
@@ -1046,6 +1063,19 @@ class Market {
         treasury.cashCents += excess * lastPrice;
       }
     }
+  }
+
+  _migrateCashBonus() {
+    const MIGRATION_ID = "cash_bonus_15k";
+    if (this.appliedMigrations.has(MIGRATION_ID)) return;
+
+    const BONUS_CENTS = 1_000_000; // $10,000 top-up to bring old $5k users to $15k
+    for (const user of this.users.values()) {
+      if (user.userId === TREASURY_USER) continue;
+      user.cashCents += BONUS_CENTS;
+    }
+
+    this.appliedMigrations.add(MIGRATION_ID);
   }
 
   _getHolding(userId, assetId) {

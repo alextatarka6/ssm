@@ -6,10 +6,12 @@ const {
   validateOrderPayload,
   validateOrderIdParam,
 } = require("../middleware/validators");
+const { orderLimiter } = require("../middleware/rateLimiter");
+const idempotency = require("../middleware/idempotency");
 
 const router = express.Router();
 
-router.post("/", validateOrderPayload, asyncHandler(controller.placeOrder));
+router.post("/", orderLimiter, idempotency, validateOrderPayload, asyncHandler(controller.placeOrder));
 router.post("/:orderId/cancel", validateOrderIdParam, asyncHandler(controller.cancelOrder));
 
 module.exports = router;

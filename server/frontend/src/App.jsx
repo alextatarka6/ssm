@@ -10,11 +10,13 @@ import {
   getUserOrders,
   getUserPortfolio,
   placeOrder,
+  setMarketPaused,
+  submitSuggestion,
   updateAsset,
   updateUser,
 } from "./api";
 import StockChart from "./components/StockChart";
-import { getFrontendConfigError } from "./config";
+import { getFrontendConfig, getFrontendConfigError } from "./config";
 import { supabase } from "./utils/supabase";
 
 
@@ -214,6 +216,7 @@ function RibbonLabel({ as: Tag = "div", text, textAs: TextTag = "span", classNam
 
 export default function App() {
   const frontendConfigError = getFrontendConfigError();
+  const { adminUserId } = getFrontendConfig();
   const [authMode, setAuthMode] = useState("register");
   const [currentView, setCurrentView] = useState("dashboard");
   const [email, setEmail] = useState("");
@@ -259,6 +262,14 @@ export default function App() {
   const [orderHistoryError, setOrderHistoryError] = useState(null);
   const [orderHistoryExpanded, setOrderHistoryExpanded] = useState(false);
   const [marketSearch, setMarketSearch] = useState("");
+  const [isSuggestionDialogOpen, setIsSuggestionDialogOpen] = useState(false);
+  const [suggestionText, setSuggestionText] = useState("");
+  const [isSuggestionSubmitting, setIsSuggestionSubmitting] = useState(false);
+  const [suggestionSuccess, setSuggestionSuccess] = useState(false);
+  const [suggestionError, setSuggestionError] = useState(null);
+  const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
+  const [marketPaused, setMarketPaused] = useState(false);
+  const [isTogglingPause, setIsTogglingPause] = useState(false);
   const profileMenuRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
@@ -422,6 +433,7 @@ export default function App() {
     setAssets(assetsResult);
     setUserOrders(ordersResult?.orders ?? []);
     setLeaderboard(leaderboardResult);
+    setMarketPaused(leaderboardResult?.paused === true);
 
     const userIssuedAssetId =
       assetsResult.find((asset) => asset.issuer_user_id === nextUserId)?.asset_id || null;
@@ -1172,6 +1184,45 @@ export default function App() {
       ? "Tune your account details and the name on your issued stock certificate."
       : null;
 
+  async function handleTogglePause() {
+    setIsTogglingPause(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated.");
+      const result = await setMarketPaused(!marketPaused, session.access_token);
+      setMarketPaused(result.paused);
+    } catch (err) {
+      setPageError(err.message || "Failed to toggle market pause.");
+    } finally {
+      setIsTogglingPause(false);
+    }
+  }
+
+  function handleOpenSuggestionDialog() {
+    setSuggestionText("");
+    setSuggestionSuccess(false);
+    setSuggestionError(null);
+    setIsSuggestionDialogOpen(true);
+  }
+
+  function handleCloseSuggestionDialog() {
+    setIsSuggestionDialogOpen(false);
+  }
+
+  async function handleSubmitSuggestion() {
+    if (!suggestionText.trim()) return;
+    setIsSuggestionSubmitting(true);
+    setSuggestionError(null);
+    try {
+      await submitSuggestion({ userId: sessionUserId, username: sessionUsername, text: suggestionText });
+      setSuggestionSuccess(true);
+    } catch (err) {
+      setSuggestionError(err.message || "Failed to submit suggestion.");
+    } finally {
+      setIsSuggestionSubmitting(false);
+    }
+  }
+
   if (!isAuthReady) {
     return (
       <div className="login-shell">
@@ -1323,6 +1374,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <button type="button" className="update-log-link" onClick={() => setIsUpdateLogOpen(true)}>
+        Update Log
+      </button>
       <header className="topbar">
         <div className="topbar-accent topbar-accent-left" aria-hidden="true" />
         <div className="topbar-accent topbar-accent-right" aria-hidden="true" />
@@ -1361,6 +1415,17 @@ export default function App() {
               >
                 Edit Profile
               </button>
+              {adminUserId && sessionUserId === adminUserId ? (
+                <button
+                  className={`profile-menu-item admin-pause-item ${marketPaused ? "admin-pause-resume" : "admin-pause-pause"}`}
+                  type="button"
+                  role="menuitem"
+                  disabled={isTogglingPause}
+                  onClick={handleTogglePause}
+                >
+                  {isTogglingPause ? "Updating..." : marketPaused ? "Resume Trading" : "Pause Trading"}
+                </button>
+              ) : null}
               <button
                 className="profile-menu-item logout"
                 type="button"
@@ -1375,6 +1440,12 @@ export default function App() {
       </div>
 
       {pageError ? <div className="error-banner">{pageError}</div> : null}
+
+      {marketPaused ? (
+        <div className="market-pause-banner" role="alert">
+          Trading is paused — no new orders can be placed right now.
+        </div>
+      ) : null}
 
       <main className={currentView === "profile" ? "profile-view" : "content-grid"}>
         {currentView === "profile" ? (
@@ -1889,6 +1960,12 @@ export default function App() {
         )}
       </main>
 
+      <footer className="site-footer">
+        <button type="button" className="footer-link" onClick={handleOpenSuggestionDialog}>
+          Suggestions
+        </button>
+      </footer>
+
       {isDeleteProfileDialogOpen ? (
         <div
           className="dialog-backdrop"
@@ -1920,6 +1997,119 @@ export default function App() {
               </button>
               <button className="auth-submit-button profile-delete-confirm-button" type="button" onClick={handleDeleteProfile} disabled={isDeletingProfile}>
                 {isDeletingProfile ? "Deleting..." : "Yes, Delete Profile"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isSuggestionDialogOpen ? (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) handleCloseSuggestionDialog();
+          }}
+        >
+          <section
+            className="dialog-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="suggestion-dialog-title"
+          >
+            <div className="dialog-copy">
+              <p className="eyebrow">Have an idea?</p>
+              <h2 id="suggestion-dialog-title">Leave a suggestion</h2>
+              <p className="panel-copy">One suggestion per day. We read every one.</p>
+            </div>
+
+            {suggestionSuccess ? (
+              <p className="suggestion-success">Thanks! Your suggestion was submitted.</p>
+            ) : (
+              <form
+                className="suggestion-form"
+                onSubmit={(e) => { e.preventDefault(); handleSubmitSuggestion(); }}
+              >
+                <textarea
+                  className="suggestion-textarea"
+                  placeholder="What would make Section Stock Market better?"
+                  maxLength={500}
+                  rows={4}
+                  value={suggestionText}
+                  onChange={(e) => setSuggestionText(e.target.value)}
+                  disabled={isSuggestionSubmitting}
+                />
+                <div className="suggestion-meta">
+                  <span className="suggestion-char-count">{suggestionText.length}/500</span>
+                  {suggestionError ? <p className="suggestion-error">{suggestionError}</p> : null}
+                </div>
+              </form>
+            )}
+
+            <div className="dialog-actions">
+              <button className="ghost-button" type="button" onClick={handleCloseSuggestionDialog}>
+                {suggestionSuccess ? "Close" : "Cancel"}
+              </button>
+              {!suggestionSuccess ? (
+                <button
+                  className="auth-submit-button"
+                  type="button"
+                  disabled={isSuggestionSubmitting || !suggestionText.trim()}
+                  onClick={handleSubmitSuggestion}
+                >
+                  {isSuggestionSubmitting ? "Submitting..." : "Submit"}
+                </button>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isUpdateLogOpen ? (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsUpdateLogOpen(false);
+          }}
+        >
+          <section
+            className="dialog-card update-log-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="update-log-title"
+          >
+            <div className="dialog-copy">
+              <p className="eyebrow">What's new</p>
+              <h2 id="update-log-title">Update Log</h2>
+            </div>
+
+            <ul className="update-log-list">
+              <li>
+                <span className="update-log-date">Apr 27, 2026</span>
+                <span className="update-log-text">Everyone got a <strong>$10,000 top-up</strong> — new players now start with $15,000</span>
+              </li>
+              <li>
+                <span className="update-log-date">Apr 27, 2026</span>
+                <span className="update-log-text"><strong>Fairer pricing</strong> — stock prices now only move when real users trade each other, not when the bank steps in</span>
+              </li>
+              <li>
+                <span className="update-log-date">Apr 27, 2026</span>
+                <span className="update-log-text"><strong>Duplicate order protection</strong> — placing the same order twice in quick succession now only creates one</span>
+              </li>
+              <li>
+                <span className="update-log-date">Apr 27, 2026</span>
+                <span className="update-log-text"><strong>Suggestions</strong> — use the link at the bottom of the page to send us feedback (one per day)</span>
+              </li>
+              <li>
+                <span className="update-log-date">Apr 27, 2026</span>
+                <span className="update-log-text"><strong>Request throttling</strong> — added to keep the market running smoothly for everyone</span>
+              </li>
+            </ul>
+
+            <div className="dialog-actions">
+              <button className="ghost-button" type="button" onClick={() => setIsUpdateLogOpen(false)}>
+                Close
               </button>
             </div>
           </section>

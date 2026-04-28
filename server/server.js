@@ -1,14 +1,21 @@
 require("dotenv").config();
 
+const cron = require("node-cron");
 const app = require("./src/app");
 const { port } = require("./src/config");
 const marketService = require("./src/services/marketService");
+const { sendDailyEmail } = require("./src/services/suggestionsService");
 
 async function startServer() {
   await marketService.initialize();
 
   const server = app.listen(port, () => {
     console.log(`Section Stock Market backend listening on port ${port}`);
+  });
+
+  // Send daily suggestions email at 11:59 PM UTC
+  cron.schedule("59 23 * * *", () => {
+    sendDailyEmail().catch((err) => console.error("[suggestions] Failed to send daily email:", err));
   });
 
   async function shutdown(signal) {

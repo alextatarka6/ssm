@@ -47,7 +47,7 @@ function validateCreateUser(req, _res, next) {
       userId: requireTrimmedString(req.body.user_id, "user_id"),
       initialCashCents:
         req.body.initial_cash_cents === undefined
-          ? 500000
+          ? 1500000
           : requireNonNegativeInteger(req.body.initial_cash_cents, "initial_cash_cents"),
       username:
         typeof req.body.username === "string" && req.body.username.trim()
