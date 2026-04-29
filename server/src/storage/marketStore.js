@@ -33,9 +33,6 @@ class FileMarketStore {
 
 class PostgresMarketStore {
   constructor(connectionString) {
-    // `pg` is only needed when a real external database is configured.
-    // That keeps local file-backed development lightweight while still letting
-    // Elastic Beanstalk use Postgres for durable state.
     const { Pool } = require("pg");
     const shouldUseSsl = process.env.PGSSLMODE
       ? process.env.PGSSLMODE !== "disable"
@@ -43,10 +40,6 @@ class PostgresMarketStore {
 
     let ssl = false;
     if (shouldUseSsl) {
-      // If a CA bundle path is provided (e.g. the RDS global-bundle.pem),
-      // load it so the connection can be fully verified. Without it, fall back
-      // to encrypt-only (rejectUnauthorized: false) which is acceptable for
-      // traffic that stays inside a VPC.
       const caFile = process.env.PGSSLROOTCERT;
       ssl = caFile
         ? { rejectUnauthorized: true, ca: fs.readFileSync(caFile, "utf8") }

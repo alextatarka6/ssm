@@ -1,26 +1,43 @@
-__pycache__/
-.pytest_cache/
-.vscode/
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Environment files
 .env
 .env.local
 .env.*.local
+
+# Data / snapshots
 data/*.json
 server/data/*.json
+snapshot.json
 *.db
-server/backend/local.db
-.codex
+
+# Elastic Beanstalk
+.elasticbeanstalk/app_versions/
+ssm-app.zip
 
 # Supabase local CLI state
 supabase/.temp/
 supabase/.branches/
 supabase/seed_fake_market_chart_data.sql
 
-assets/
-
-ssm-app.zip
-alex-dev-laptop.pem
+# Credentials / keys
+*.pem
 EC2_ACCESS.txt
-CLAUDE.md
+
+# Editor
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Misc
+assets/
+.codex
 DEPLOY_AMPLIFY.md

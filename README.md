@@ -14,7 +14,7 @@ supabase/           Supabase migrations
 
 ## Backend
 
-**Requirements:** Node.js 18+
+**Requirements:** Node.js 22+
 
 **Environment variables** (create `server/.env`):
 

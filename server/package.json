@@ -12,7 +12,7 @@
     "frontend:build": "npm install --prefix frontend && npm run build --prefix frontend"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
