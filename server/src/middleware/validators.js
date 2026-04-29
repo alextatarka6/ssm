@@ -128,27 +128,6 @@ function validateOrderPayload(req, _res, next) {
   }
 }
 
-function validateMarketTradePayload(side) {
-  return function validateMarketTrade(req, _res, next) {
-    try {
-      const validated = cloneValidated(req);
-      validated.body = {
-        userId: requireTrimmedString(req.body.user_id, "user_id"),
-        assetId: requireTrimmedString(req.body.asset_id, "asset_id"),
-        qty: requirePositiveInteger(req.body.qty, "qty"),
-        limitPriceCents: requirePositiveInteger(
-          req.body.limit_price_cents,
-          "limit_price_cents",
-        ),
-      };
-      validated.body.side = side;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-}
-
 function validateUpdateUser(req, _res, next) {
   try {
     const validated = cloneValidated(req);
@@ -267,7 +246,6 @@ module.exports = {
   validateCreateAsset,
   validateUpdateAsset,
   validateOrderPayload,
-  validateMarketTradePayload,
   validateUserIdParam,
   validateAssetIdParam,
   validateOrderIdParam,

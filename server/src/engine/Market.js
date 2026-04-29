@@ -14,6 +14,9 @@ const {
 } = require("../utils/errors");
 const { TREASURY_USER, BOT_INITIAL_CASH_CENTS, Side, OrderStatus, EventType } = require("./constants");
 
+const INITIAL_CASH_CENTS = 1_500_000;
+const INITIAL_ISSUER_PCT = 0.1;
+
 class Market {
   constructor() {
     this.reset();
@@ -85,8 +88,9 @@ class Market {
     market.appliedMigrations = new Set(snapshot.appliedMigrations || []);
     market.paused = snapshot.paused === true;
 
-    market._migrateIssuerCap();
+    market._enforceIssuerCap();
     market._migrateCashBonus();
+    market._migrateCashFloor15k();
 
     for (const stock of market.stocks.values()) {
       market._rebalanceTreasuryOrders(stock.assetId);
@@ -111,7 +115,7 @@ class Market {
     };
   }
 
-  createUser({ userId, initialCashCents = 1500000, username, avatarUrl, isBot = false }) {
+  createUser({ userId, initialCashCents = INITIAL_CASH_CENTS, username, avatarUrl, isBot = false }) {
     const normalizedUserId = this._normalizeRequiredString(userId, "user_id");
 
     if (this.users.has(normalizedUserId)) {
@@ -170,7 +174,7 @@ class Market {
     issuerUserId,
     assetId,
     totalSupply = 1000,
-    issuerPct = 0.1,
+    issuerPct = INITIAL_ISSUER_PCT,
     name,
   }) {
     const normalizedIssuerId = this._normalizeRequiredString(issuerUserId, "issuer_user_id");
@@ -267,26 +271,6 @@ class Market {
   getAsset(assetId) {
     const stock = this._requireAsset(assetId);
     return this.serializeAsset(stock);
-  }
-
-  buyStock({ userId, assetId, qty, limitPriceCents }) {
-    return this.placeOrder({
-      userId,
-      assetId,
-      side: Side.BUY,
-      qty,
-      limitPriceCents,
-    });
-  }
-
-  sellStock({ userId, assetId, qty, limitPriceCents }) {
-    return this.placeOrder({
-      userId,
-      assetId,
-      side: Side.SELL,
-      qty,
-      limitPriceCents,
-    });
   }
 
   placeOrder({ userId, assetId, side, qty, limitPriceCents }) {
@@ -403,44 +387,6 @@ class Market {
     });
 
     return this.serializeOrder(order);
-  }
-
-  processOrders() {
-    return {
-      ok: true,
-      processed_order_count: 0,
-      message: "Orders are price-matched immediately when they are submitted.",
-    };
-  }
-
-  getOrderBook(assetId) {
-    const normalizedAssetId = this._normalizeRequiredString(assetId, "asset_id");
-    this._requireAsset(normalizedAssetId);
-
-    const buyOrders = [];
-    const sellOrders = [];
-
-    for (const order of this.orders.values()) {
-      if (
-        order.assetId !== normalizedAssetId ||
-        ![OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED].includes(order.status) ||
-        order.remainingQty <= 0
-      ) {
-        continue;
-      }
-
-      const target = order.side === Side.BUY ? buyOrders : sellOrders;
-      target.push(this.serializeOrder(order));
-    }
-
-    buyOrders.sort((left, right) => right.limit_price_cents - left.limit_price_cents || left.seq - right.seq);
-    sellOrders.sort((left, right) => left.limit_price_cents - right.limit_price_cents || left.seq - right.seq);
-
-    return {
-      asset_id: normalizedAssetId,
-      buys: buyOrders,
-      sells: sellOrders,
-    };
   }
 
   getTrades(assetId, limit = 100) {
@@ -596,8 +542,6 @@ class Market {
   }
 
   resetMarket() {
-    const INITIAL_CASH_CENTS = 1_500_000;
-
     // Clear all orders (cancel open ones first to release reserved amounts)
     for (const order of this.orders.values()) {
       if (order.status === OrderStatus.OPEN || order.status === OrderStatus.PARTIALLY_FILLED) {
@@ -622,7 +566,6 @@ class Market {
     }
 
     // Reset holdings and last price for each stock
-    const INITIAL_ISSUER_PCT = 0.1;
     for (const stock of this.stocks.values()) {
       this.lastPriceCents.set(stock.assetId, 1000);
 
@@ -665,9 +608,6 @@ class Market {
     const user = this._requireUser(userId);
     if (userId === TREASURY_USER) throw new ValidationError("Cannot reset the treasury user.");
     if (user.isBot) throw new ValidationError("Cannot reset a bot user.");
-
-    const INITIAL_CASH_CENTS = 1_500_000;
-    const INITIAL_ISSUER_PCT = 0.1;
 
     // Cancel this user's open orders
     for (const order of this.orders.values()) {
@@ -1158,7 +1098,7 @@ class Market {
     return qty;
   }
 
-  _migrateIssuerCap() {
+  _enforceIssuerCap() {
     const MAX_ISSUER_PCT = 0.1;
 
     for (const stock of this.stocks.values()) {
@@ -1215,6 +1155,20 @@ class Market {
         treasury.cashCents += excess * lastPrice;
       }
     }
+  }
+
+  _migrateCashFloor15k() {
+    const MIGRATION_ID = "cash_floor_15k";
+    if (this.appliedMigrations.has(MIGRATION_ID)) return;
+
+    const FLOOR_CENTS = 1_500_000;
+    for (const user of this.users.values()) {
+      if (user.userId === TREASURY_USER) continue;
+      if (user.isBot) continue;
+      if (user.cashCents < FLOOR_CENTS) user.cashCents = FLOOR_CENTS;
+    }
+
+    this.appliedMigrations.add(MIGRATION_ID);
   }
 
   _migrateCashBonus() {
@@ -1332,10 +1286,4 @@ class Market {
   }
 }
 
-module.exports = {
-  Market,
-  TREASURY_USER,
-  Side,
-  OrderStatus,
-  EventType,
-};
+module.exports = { Market };
