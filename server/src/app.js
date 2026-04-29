@@ -40,6 +40,7 @@ const corsOptions = {
 
     callback(new Error("Origin not allowed by CORS"));
   },
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));

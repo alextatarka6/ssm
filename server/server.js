@@ -24,8 +24,7 @@ async function startServer() {
   async function shutdown(signal) {
     console.log(`${signal} received, shutting down gracefully...`);
     server.close(async () => {
-      // Drain the mutation queue so the last snapshot is written before exit.
-      await marketService.mutate((m) => m).catch(() => {});
+      await marketService.persist();
       if (marketService.store.end) {
         await marketService.store.end().catch(() => {});
       }

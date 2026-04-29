@@ -53,11 +53,25 @@ class PostgresMarketStore {
         : { rejectUnauthorized: false };
     }
 
-    this.pool = new Pool({ connectionString, ssl });
+    this.pool = new Pool({
+      connectionString,
+      ssl,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 30000,
+    });
+  }
+
+  _query(text, values, timeoutMs = 10000) {
+    return Promise.race([
+      values ? this.pool.query(text, values) : this.pool.query(text),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`DB query timed out after ${timeoutMs}ms`)), timeoutMs)
+      ),
+    ]);
   }
 
   async initialize() {
-    await this.pool.query(`
+    await this._query(`
       CREATE TABLE IF NOT EXISTS market_snapshots (
         id INTEGER PRIMARY KEY,
         snapshot JSONB NOT NULL,
@@ -67,12 +81,12 @@ class PostgresMarketStore {
   }
 
   async ping() {
-    await this.pool.query("SELECT 1");
+    await this._query("SELECT 1", null, 3000);
     return true;
   }
 
   async loadSnapshot() {
-    const result = await this.pool.query(
+    const result = await this._query(
       "SELECT snapshot FROM market_snapshots WHERE id = $1 LIMIT 1",
       [1],
     );
@@ -81,7 +95,7 @@ class PostgresMarketStore {
   }
 
   async saveSnapshot(snapshot) {
-    await this.pool.query(
+    await this._query(
       `
         INSERT INTO market_snapshots (id, snapshot, updated_at)
         VALUES ($1, $2::jsonb, NOW())

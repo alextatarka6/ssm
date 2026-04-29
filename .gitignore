@@ -22,4 +22,5 @@ assets/
 ssm-app.zip
 alex-dev-laptop.pem
 EC2_ACCESS.txt
-Instructions.md
+CLAUDE.md
+DEPLOY_AMPLIFY.md

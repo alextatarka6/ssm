@@ -1,11 +1,14 @@
 const { Market } = require("../engine/Market");
 const createMarketStore = require("../storage/marketStore");
 
+const SAVE_DEBOUNCE_MS = 10_000;
+
 class MarketService {
   constructor() {
     this.market = new Market();
     this.store = createMarketStore();
     this.mutationQueue = Promise.resolve();
+    this._saveTimer = null;
   }
 
   async initialize() {
@@ -23,9 +26,9 @@ class MarketService {
   }
 
   async mutate(mutator) {
-    const runMutation = async () => {
+    const runMutation = () => {
       const result = mutator(this.market);
-      await this.store.saveSnapshot(this.market.toSnapshot());
+      this._scheduleSave();
       return result;
     };
 
@@ -36,6 +39,25 @@ class MarketService {
     );
 
     return resultPromise;
+  }
+
+  // Force an immediate save — call this on graceful shutdown.
+  async persist() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = null;
+    await this.store.saveSnapshot(this.market.toSnapshot()).catch((err) => {
+      console.error("[market] shutdown save failed:", err.message);
+    });
+  }
+
+  _scheduleSave() {
+    if (this._saveTimer !== null) return;
+    this._saveTimer = setTimeout(async () => {
+      this._saveTimer = null;
+      await this.store.saveSnapshot(this.market.toSnapshot()).catch((err) => {
+        console.error("[market] snapshot save failed:", err.message);
+      });
+    }, SAVE_DEBOUNCE_MS);
   }
 }
 
