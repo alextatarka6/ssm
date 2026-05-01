@@ -12,9 +12,18 @@ class MarketService {
   }
 
   async initialize() {
-    await this.store.initialize();
-    const snapshot = await this.store.loadSnapshot();
-    this.market = Market.fromSnapshot(snapshot);
+    try {
+      await this.store.initialize();
+      const snapshot = await this.store.loadSnapshot();
+      this.market = Market.fromSnapshot(snapshot);
+    } catch (err) {
+      const { FileMarketStore } = require("../storage/marketStore");
+      if (this.store instanceof FileMarketStore) throw err;
+      console.error("[market] Postgres unavailable on startup, falling back to file store:", err.message);
+      this.store = new FileMarketStore();
+      const snapshot = await this.store.loadSnapshot();
+      this.market = Market.fromSnapshot(snapshot);
+    }
   }
 
   getMarket() {

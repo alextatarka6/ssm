@@ -114,3 +114,4 @@ function createMarketStore() {
 }
 
 module.exports = createMarketStore;
+module.exports.FileMarketStore = FileMarketStore;
